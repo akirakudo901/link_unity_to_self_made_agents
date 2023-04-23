@@ -55,11 +55,11 @@ class GridWorldBaseTrainer:
         Given a Unity Environment and a learning algorithm, this method will generate a
         buffer of Experiences obtained by running the Environment with the Policy
         derived from the algorithm.
-        :param BaseEnv: The UnityEnvironment used.
+        :param BaseEnv env: The UnityEnvironment used.
         :param learning_algo: The algorithm used to collect the data. Takes in a numpy array
         of observation, and returns a numpy array of values evaluating utility of all actions
-        :param buffer_size: The minimum size of the buffer this method will return.
-        :param epsilon: Will add a random normal variable with standard deviation.
+        :param int buffer_size: The minimum size of the buffer this method will return.
+        :param float epsilon: Will add a random normal variable with standard deviation.
         epsilon to the value heads of the Q-Network to encourage exploration.
         :returns: a Tuple containing the created buffer and the average cumulative
         the Agents obtained.
