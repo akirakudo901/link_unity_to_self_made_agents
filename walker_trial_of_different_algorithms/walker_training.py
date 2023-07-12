@@ -9,7 +9,7 @@ import torch
 
 import ddqn
 from ddqn import DDQN
-from unityenv_base_trainer import OffPolicyBaseTrainer
+from trainers.unityenv_base_trainer import OffPolicyBaseTrainer
 
 SAVE_AFTER_TRAINING = True
 

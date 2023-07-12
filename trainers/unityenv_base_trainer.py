@@ -253,7 +253,7 @@ class OffPolicyBaseTrainer(OnPolicyBaseTrainer):
         :param BehaviorName behavior_name: The behavior_name of the agent for which we 
         generate the experience.
         :returns Buffer buffer: The buffer containing buffer_size experiences.
-        :returns float cumulative_reward: The average reward for agents over the entire
+        :returns float average_cumulative_reward: The average reward for agents over the entire
         trajectories in the buffer.
         """
         # Create an empty buffer and list of rewards to be returned
