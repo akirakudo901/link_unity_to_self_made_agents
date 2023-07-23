@@ -4,8 +4,8 @@ https://spinningup.openai.com/en/latest/algorithms/sac.html
 
 A discussion on the background & motivations behind the algorithm:
 
-Our goal is to extract, from the environment, the approximated optimal policy within a set 
-of parametrized (differentiable) policies Pi. Such a policy, pi*, maximizes the expected 
+Our goal is to extract, from the environment, the approximated optimal policy pi* within a set 
+of parametrized (differentiable) policies Pi. Such a policy pi* maximizes the expected 
 cumulative reward in the environment from any given state.
 
 We know, from the policy gradient theorem, that given a policy parameterized by phi,
@@ -46,8 +46,8 @@ V_old(s') ~= Q_old(s',a') - log(pi(s',a'))
 where a' is freshly samples from the current policy pi at state s'.
 
 Since the Q-value function is approximated by a neural network, the repeated update can be
-achieved through minimizing the following cost function with respect to parameters of Q and 
-a buffer D of previous experiences, through gradient descent with respect to theta:
+achieved through minimizing the following cost function with respect to the parameters theta 
+of Q and a buffer D of previous experiences, through gradient descent with respect to theta:
 
 J_Q (theta) = 1/2 * E_(s,a,r,s',d)~D [ Q_theta (s,a) - y(r,s',d) ]^2
 where y(r,s',d) is the target value calculated through evaluation against the neural networks.
@@ -103,21 +103,52 @@ from the policy for estimation.
 Since all policies are parameterized by phi, we can adjust phi according to minimizing the loss function
 J_pi(phi) 
  = E_s~D[ DKL(pi_phi(s,.) || exp(Q_theta(s,.)) / Z_theta(s)) ]
- = E_s~D[ pi_phi(s,.)*log{ pi_phi(s,.) / exp(Q_theta(s,.)) * Z_theta(s)} ]
- = E_s~D[ pi_phi(s,.)*{ log(pi_phi(s,.)) - Q_theta(s,.) + log(Z_theta(s)) } ]
-
+ = E_s~D[ (Integrate over A) pi_phi(s,a)*log{ pi_phi(s,a) / exp(Q_theta(s,a)) * Z_theta(s)} ]
+ = E_s~D[ (Integrate over A) pi_phi(s,a)*{ log(pi_phi(s,a)) - Q_theta(s,a) + log(Z_theta(s)) } ]
+ where A is the set of all actions.
+ 
 As we are looking to minimize this with respect to phi, and theta is stationary through this
-process, log(Z_theta(s)) can be ultimately ignored - convenient as it is computationally costly.
+process, log(Z_theta(s)) can be ultimately ignored as simply being a constant - convenient as 
+it is computationally costly.
 Then, the loss function can be formulated, omitting that term, as:
-J_pi(phi) = E_s~D[ pi_phi(s,.)*{ log(pi_phi(s,.)) - Q_theta(s,.) }]
- *I believe Q_theta(s,.) still has to remain in the terms, since . is distributed along pi_phi.
-
+J_pi(phi) = E_s~D[ (Integrate over A) pi_phi(s,a)*{ log(pi_phi(s,a)) - Q_theta(s,a) }]
+ 
 Estimating the gradient of J_pi(phi) with respect to phi can be done in multiple ways:
 
 1: using likelihood ratio gradient.
-In this soft-Q function's case, I can't quite feel confident to use this way;
-but in general, we can use likelihood ratios to bypass integrals and make estimation
-through sampling. 
+Taking the gradient with respect to phi of the loss function above goes as follows:
+Delta_phi J_pi(phi) 
+ = Delta_phi E_s~D[ (Integrate over A) pi_phi(s,a)*{ log(pi_phi(s,a)) - Q_theta(s,a) }]
+ = E_s~D[ (Integrate over A) Delta_phi ( pi_phi(s,a)*{ log(pi_phi(s,a)) - Q_theta(s,a) } ) ]
+ = E_s~D[ (Integrate over A) ( Delta_phi pi_phi(s,a)*{ log(pi_phi(s,a)) - Q_theta(s,a) } ) + 
+ ( pi_phi(s,a) * Delta_phi { log(pi_phi(s,a)) } )]
+ = E_s~D[ (Integrate over A) ( Delta_phi pi_phi(s,a)*{ log(pi_phi(s,a)) - Q_theta(s,a) } ) + 
+ E_a~pi_phi[ pi_phi(s,a) * Delta_phi { log(pi_phi(s,a)) } ] ]
+
+The second term of this equation can be estimated using random samples - but this is not the case
+for the first term. To be able to also estimate the first term with random samples, we can rewrite
+it using the REINFORCE trick:
+Delta_phi pi_phi(s,a)*{ log(pi_phi(s,a)) - Q_theta(s,a) }
+ = {Delta_phi pi_phi(s,a)} / pi_phi(s,a) * pi_phi(s,a) * { log(pi_phi(s,a)) - Q_theta(s,a) }
+ = Delta_phi {log {pi_phi(s,a)} } * pi_phi(s,a) * { log(pi_phi(s,a)) - Q_theta(s,a) }
+ = pi_phi(s,a) * Delta_phi {log {pi_phi(s,a)} } * { log(pi_phi(s,a)) - Q_theta(s,a) }
+
+Substituting this back, we get:
+Delta_phi J_pi(phi) 
+ = E_s~D[ (Integrate over A) ( Delta_phi pi_phi(s,a)*{ log(pi_phi(s,a)) - Q_theta(s,a) } ) + 
+ E_a~pi_phi[ pi_phi(s,a) * Delta_phi { log(pi_phi(s,a)) } ] ]
+ = E_s~D[ 
+    (Integrate over A) 
+    ( pi_phi(s,a) * Delta_phi {log {pi_phi(s,a)} } * { log(pi_phi(s,a)) - Q_theta(s,a) } ) + 
+ E_a~pi_phi[ pi_phi(s,a) * Delta_phi { log(pi_phi(s,a)) } ] ]
+ = E_s~D[
+ E_a~pi_phi[ Delta_phi {log {pi_phi(s,a)} } * { log(pi_phi(s,a)) - Q_theta(s,a) } ] + 
+ E_a~pi_phi[ pi_phi(s,a) * Delta_phi { log(pi_phi(s,a)) } ] ]
+ = E_s~D[
+ E_a~pi_phi[ ( Delta_phi {log {pi_phi(s,a)} } * { log(pi_phi(s,a)) - Q_theta(s,a) } ) + 
+ ( pi_phi(s,a) * Delta_phi { log(pi_phi(s,a)) } ) ] ]
+
+ which can then be estimated by sampling according to the buffer D and policy pi_phi.
 
 2: using the reparameterization trick.
 This approach regards the stochastic policy, determining the distribution of actions in the
@@ -128,28 +159,38 @@ the loss function's gradient which generally has been found to have lower varian
 that obtained through likelihood ratio gradient.
 
 Let a noise value epsilon (eps) be sampled from a random variable q(eps), such as a spherical 
-gaussian distribution. Also let the action in the policy be obtained by applying a transformation
-f_phi(x|s) which is parameterized by phi, to eps, such that pi_phi(a|s) = f_phi(q(eps)|s).
+gaussian distribution - this is appropriate in the case of the original SAC paper, which uses a 
+multivariate normal distribution as policy approximator, which covariance matrix is diagonal. 
+Also let the action in the policy be obtained by applying a transformation f_phi(x|s) which is parameterized by phi, to eps, such that a = f_phi(eps|s).
 Then, we can rewrite the above loss function as follows:
 
-J_pi(phi) = E_s~D[ { pi_phi(s,a)*{ log(pi_phi(s,a)) - Q_theta(s,a) } } ]
- = E_s~D[ E_a~pi_phi(s,.) { log(pi_phi(s,a)) - Q_theta(s,a) } ]
- = E_s~D[ E_eps~q(eps) { log(pi_phi(s, f(eps|s)) - Q_theta(s, f(eps|s) ) } ]
+J_pi(phi) = E_s~D[ E_a~pi_phi[ pi_phi(s,a)*{ log(pi_phi(s,a)) - Q_theta(s,a) } ] ]
+ = E_s~D[ E_eps~q(eps)[ log(pi_phi( s, f_phi(eps|s) )) - Q_theta( s, f_phi(eps|s) ) ] ]
+
+This allowed us to reformulate what used to be an expectation over the action distributed along
+pi_phi, which we will tweak when taking the gradient with respect to phi, into an expectation 
+over the action distributed along q(eps), which does not rely on phi.
 
 Then, this function's gradient with respect to phi can be obtained as follows:
 Delta_phi J_pi(phi)
- = E_s~D[ E_eps~q(eps) Delta_phi { log(pi_phi(s, f(eps|s)) - Q_theta(s, f(eps|s) ) } ]
- = E_s~D[ E_eps~q(eps) Delta_phi { log(pi_phi(s, f(eps|s)) } + 
-  Delta_f { log(pi_phi(s, f(eps|s) ) - Q_theta(s, f(eps|s)) } * Delta_phi { f(eps|s) } ]
- ~= Delta_phi { log(pi_phi(s, f(eps|s) )) } + 
-  Delta_f { log(pi_phi(s, f(eps|s) ) - Q_theta(s, f(eps|s)) } * Delta_phi { f(eps|s) } ]
-  where s is sampled from D, eps from its distribution q(eps), and f(eps|s) is an evaluated value.
+ = Delta_phi E_s~D[ E_eps~q(eps)[ log(pi_phi( s, f_phi(eps|s) )) - Q_theta( s, f_phi(eps|s) ) ] ]
+ = E_s~D[ E_eps~q(eps)[ Delta_phi{ log(pi_phi( s, f_phi(eps|s) )) - Q_theta( s, f_phi(eps|s) ) } ] ]
+ = E_s~D[ E_eps~q(eps)[ Delta_phi{ log(pi_phi( s, f_phi(eps|s) )) }
+  - Delta_f{ Q_theta( s, a ) }*Delta_phi{ f_phi(eps|s) } ] ]
 
-In the original SAC paper, the authors use a spherical Gaussian distribution for noise vectors, 
-and propose the usage of a Gaussian distribution parameterized by neural networks to form the 
-policy. Then, our policy can be set to be deterministic for inference, with the chosen action
-set to the mean of the learned Gaussian distribution during training.
+Dealing with the first term Delta_phi { log(pi_phi( s, f_phi(eps|s) )) } is quite complicated, so
+I will leave it to this arxiv paper: https://arxiv.org/pdf/2112.15568v1.pdf
+Essentially, this part will evaluate to:
+Delta_phi{ log(pi_phi( s, f_phi(eps|s) )) }
+ = Delta_phi{ log(pi_phi( s, a )) } + Delta_a{ log(pi_phi( s, a )) }*Delta_phi{ f_phi(eps|s) }
 
+The overall equation for the derivative thus evaluates to:
+Delta_phi J_pi(phi)
+ = E_s~D[ E_eps~q(eps)[ 
+    Delta_phi{ log(pi_phi( s, a )) } + Delta_a{ log(pi_phi( s, a )) }*Delta_phi{ f_phi(eps|s) }
+    - Delta_f{ Q_theta( s, a ) }*Delta_phi{ f_phi(eps|s) } 
+    ] ]
+    
 Enough reflection, let's try implementing our algorithm.
 
 *This file is not tested as it is just implemented for fun; once implemented and if it works well, I 
@@ -166,6 +207,8 @@ from torch.distributions.normal import Normal
 
 from policy_learning_algorithms.policy_learning_algorithm import OffPolicyLearningAlgorithm
 from trainers.unityenv_base_trainer import Buffer
+
+RUN_TESTS = True
 
 class SoftActorCritic(OffPolicyLearningAlgorithm):
     
@@ -188,22 +231,27 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
         """
         A neural network approximating the policy.
         Composed of a stochastic noise component and a deterministic component
-        which maps the noises to corresponding actions.
+        which maps the noises to corresponding actions - which is required to apply the 
+        reparameterization trick, as proposed in the original paper.
         """
         """
         We will start by modeling the noise & deterministic components according
         to the original SAC paper and some imagination of my own:
-        - noise as sampled from a multivariate gaussian distribution
-        - deterministic component as a combination of tanh and the noise transformed
-         based on mean and sd given by evaluating the neural network at observation
+        - noise as sampled from a spherical gaussian distribution
+        - deterministic component as a combination of a transformation based on mean and sd 
+         given by evaluating the neural network at observation - the multivariate normal 
+         distribution is assumed to have a diagonal covariance matrix for simplicity (and as 
+         it still seems to work well enough from reading the paper) - and tanh to limit possible
+         action values.
         """
 
         def __init__(self, observation_size : int, action_size : int):
             """
-            Implements the neural network which maps observations to two values
+            Implements the neural network which maps observations to two vectors
             determining the corresponding distribution for the policy:
-            - mean of approximated function
-            - sd of approximated function
+            - mean vector of approximated function
+            - variance vector of approximated function (the covariance matrix of this 
+            multivariate normal distribution is diagonal)
 
             :param int observation_size: The size of the observation input vector.
             :param int action_size: The size of the action vectors.
@@ -227,7 +275,7 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
         def forward(self, 
                     obs : torch.tensor,
                     num_samples : int = 1,
-                    deterministic : bool = False
+                    deterministic : bool = False,
                     ):
             """
             Takes in the observation to spit out num_samples actions sampled from the 
@@ -257,16 +305,44 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
             :return torch.tensor log_probs: The log probability for corresponding actions in squashed.
             """
 
-            def correct_for_squash(before : torch.tensor):
+            def correct_for_squash(before : torch.tensor, actions : torch.tensor):
                 """
                 Corrects for the log probabilities following squashing
-                using tanh.
+                using tanh. 
+
+                Given before is a log probability and the transformation is elementwise tanh,
+                the adjustment is 
+                 [before - Sum(1 - tanh^2(u_i))] 
+                 where u_i is the ith element in a single action.
+                 This is since
+                   1) Correction involves multiplying the original probability with the determinant
+                      of the Jacobian of the transformation.
+                   2) The Jacobian of elementwise tanh is a diagonal, with each entry being each 
+                      element of each action transformed by the derivative of tanh, which is 
+                      (1 - tanh^2(x)). We divide by this factor here as after results from tanh 
+                      correction of before.
+                   3) Since we are dealing with log probabilities, multiplication turn to addition.
 
                 :param torch.tensor before: The log probabilities to be corrected.
+                Will be of the form [num_samples].
+                :param torch.tensor actions: The actions which log probabilities are in question.
+                Will be of the form [num_samples, dimensions_of_action_space].
                 :return torch.tensor after: The log probabilities after being corrected.
+                Will be of the form [num_samples].
                 """
-                after = before #TODO UNDERSTAND AND APPLY THE RIGHT FORMULA HERE
+                print(before.shape, actions.shape, after.shape)
+                # compute the trace of the Jacobian of tanh squashing for each action
+                jacobian_trace = torch.sum((1 - torch.tanh(actions)**2), dim=1)
+                # subtract it from before to yield after
+                after = before - jacobian_trace
                 return after
+
+            def test_correct_for_squash():
+                # TODO!
+                pass
+            
+            # we squash action values to be between -1 and 1 using tanh
+            squashing_function = torch.tanh
 
             # we obtain the mean myu and sd sigma of the gaussian distribution
             stack_out = self.linear_sigmoid_stack(obs)
@@ -274,15 +350,15 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
             sigmas = self.sd_layer(stack_out)
             
             # if deterministic (while in inference), return the mean of distributions
-            # corresponding to actions at time of inference
-            if deterministic: return myus
+            # corresponding to actions at time of inference, but squashed as needed
+            if deterministic: return squashing_function(myus)
             
             # then evaluate the probability that action is chosen under the distribution
-            dist = Normal(loc=myus, scale=sigmas) #CHANGES THIS - WILL BE MULTIVARIATE NORMAL
+            dist = Normal(loc=myus, scale=sigmas) #Normal under assumption of diagonal covariance mat
             actions = dist.sample(sample_shape=(num_samples, ))
-            squashed = torch.tanh(actions)
+            squashed = squashing_function(actions)
             log_probs = correct_for_squash(
-                dist.log_prob(actions)
+                before=dist.log_prob(actions), actions=actions
                 )
  
             return squashed, log_probs
