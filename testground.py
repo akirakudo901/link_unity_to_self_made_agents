@@ -49,6 +49,13 @@ from trainers.unityenv_base_trainer import Buffer, Experience
 # print(float_t)
 
 # [batch, num_samples]
-t1 = torch.tensor([[0, 1, 2, 3, 4], [5, 6, 7, 8, 9]]).to(torch.float32)
-t2 = torch.mean(t1, dim=1)
-print(t2, t2.shape)
+# t1 = torch.tensor([[0, 1, 2, 3, 4], [5, 6, 7, 8, 9]]).to(torch.float32)
+# t2 = torch.mean(t1, dim=1)
+# print(t2, t2.shape)
+
+# oldSAC = SoftActorCritic(q_net_learning_rate=1e-3, policy_learning_rate=1e-3, discount=0.99, temperature=0.8, observation_size=3, action_size=4)
+
+# oldSAC.save(task_name="test")
+
+newSAC = SoftActorCritic(q_net_learning_rate=1e-2, policy_learning_rate=1e-2, discount=0.1, temperature=0.23, observation_size=3, action_size=4)
+newSAC.load(loaded_sac_name="trained_algorithms/SAC/test_2023_07_25_10_03")

@@ -198,6 +198,8 @@ Enough reflection, let's try implementing our algorithm.
 will just use open sourced implementations from there.
 """
 
+from datetime import datetime
+import os
 import random
 
 import numpy as np
@@ -452,6 +454,15 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
         # initialize policy 
         self.policy = SoftActorCritic.Policy(observation_size=observation_size, action_size=action_size)
         self.optim_policy = optimizer(self.policy.parameters(), lr=policy_learning_rate)
+    
+    def __call__(self, state):
+        """
+        A format put in place where SAC is called raw to obtain actions from it.
+
+        :param state: The state of observation in question to which this algorithm was applied.
+        Could be a numpy array or torch tensor? TODO ASCERTAIN!
+        """
+        return self.get_optimal_action(self, state)
       
     def update(self, experiences : Buffer):
         # "experiences" is a list of experiences: (obs, action, reward, done, next_obs)
@@ -654,10 +665,48 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
         return observations,actions,rewards,dones,next_observations
     
     def get_optimal_action(self, state):
-        pass
+        action = self.policy(obs=state, deterministic=True)
+        return action
     
-    def save(self, task_name: str):
-        pass
+    def save(self, task_name: str, save_dir : str = None):
+        creation_time = datetime.now().strftime("%Y_%m_%d_%H_%M")
+        if save_dir is None:
+            save_dir = f"trained_algorithms/SAC/{task_name}_{creation_time}"
+        
+        if not os.path.exists(save_dir): os.mkdir(save_dir)
+        suffix =  ".pth"
+        try: 
+            torch.save(self.policy.state_dict(),    save_dir + "/policy"    + suffix)
+            torch.save(self.qnet1.state_dict(),     save_dir + "/qnet1"     + suffix)
+            torch.save(self.qnet2.state_dict(),     save_dir + "/qnet2"     + suffix)
+            torch.save(self.qnet1_tar.state_dict(), save_dir + "/qnet1_tar" + suffix)
+            torch.save(self.qnet2_tar.state_dict(), save_dir + "/qnet2_tar" + suffix)
+        except:
+            raise Exception("SAVING SOMEHOW FAILED...")
     
-    def load(self, path: str):
-        pass
+    def load(self, loaded_sac_name : str = None):
+        """
+        AS OF RIGHT NOW, THIS REQUIRES THAT THE LOADED ALGORITHM HAS IDENTICAL POLICY AND QNET 
+        STRUCTURE AS THE CURRENT SELF ALGORITHM.
+
+        ALSO, IT DOES NOT LOAD IMPORTANT INFORMATION SUCH AS OPTIMIZER, LEARNING RATES & THE ALIKE.
+
+        Loads the group of policy & qnets to this SAC algorithm.
+        loaded_sac_name is everything that specifies an algorithm up to the time of creation;
+        e.g. "trained_algorithms/SAC/walker_2023_07_25_09_52"
+
+        :param str loaded_sac_name: The name of the directory holding the policy to be loaded, 
+        defaults to None.
+        An example of format will be "trained_algorithms/SAC/walker_2023_07_25_09_52/".
+        """
+        if not loaded_sac_name.endswith("/"): loaded_sac_name += "/"
+        
+        suffix =  ".pth"
+        try: 
+            self.policy.load_state_dict(   torch.load(loaded_sac_name + "policy"    + suffix))
+            self.qnet1.load_state_dict(    torch.load(loaded_sac_name + "qnet1"     + suffix))
+            self.qnet2.load_state_dict(    torch.load(loaded_sac_name + "qnet2"     + suffix))
+            self.qnet1_tar.load_state_dict(torch.load(loaded_sac_name + "qnet1_tar" + suffix))
+            self.qnet2_tar.load_state_dict(torch.load(loaded_sac_name + "qnet2_tar" + suffix))
+        except:
+            raise Exception("LOADING SOMEHOW FAILED...")
