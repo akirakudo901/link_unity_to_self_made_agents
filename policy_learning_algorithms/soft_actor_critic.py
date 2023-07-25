@@ -40,7 +40,8 @@ To do so, we can update the Q function as follows multiple times:
 
 Q_new(s,a) <- r + gamma * V_old(s')
 
-where V_old(s') = E_a'~pi [ Q_old(s',a') - log(pi(s',a')) ]
+where gamma is the discount rate, and 
+V_old(s') = E_a'~pi [ Q_old(s',a') - log(pi(s',a')) ]
 which can be approximated as
 V_old(s') ~= Q_old(s',a') - log(pi(s',a'))
 where a' is freshly samples from the current policy pi at state s'.
@@ -60,17 +61,17 @@ instability arising from initial over-estimation of Q-values being exploited by 
 So in essense, there are two parmeterized Q-functions theta1 and theta2, both updated 
 minimizing the above loss function, where y(r,s',d) is set to be:
 
-y(r,s',d) = r + (1-d)*E_a'~pi [ min(Q_theta1(s',a'), Q_theta2(s',a')) - log(pi(s',a')) ]
- ~= r + (1-d)*[ min(Q_theta1(s', a'), Q_theta2(s', a')) - log(pi(s',a')) ] 
- where a' is sampled fresh based on policy pi.
+y(r,s',d) = r + gamma*(1-d)*E_a'~pi [ min(Q_theta1(s',a'), Q_theta2(s',a')) - log(pi(s',a')) ]
+ ~= r + gamma*(1-d)*[ min(Q_theta1(s', a'), Q_theta2(s', a')) - log(pi(s',a')) ] 
+ where gamma is the discount rate and a' is sampled fresh based on policy pi.
 
 In such a case, the gradient of J_Q with respect to theta - 1 or 2 - can be estimated as the 
 following:
 
 Delta_theta J_Q(theta) 
- ~= Delta_theta 1/2 * [ Q_theta(s,a) - r - (1-d)*[ min(Q_theta1(s',a'), Q_theta2(s',a')) - log(pi(s',a')) ]^2
+ ~= Delta_theta 1/2 * [ Q_theta(s,a) - r - gamma*(1-d)*[ min(Q_theta1(s',a'), Q_theta2(s',a')) - log(pi(s',a')) ]^2
  where (s,a,r,s',d) are sampled from the replay buffer D
- = Delta_theta Q_theta(s,a) * [ Q_theta(s,a) - r - (1-d)*[ min(Q_theta1(s',a'), Q_theta2(s',a')) - log(pi(s',a')) ]
+ = Delta_theta Q_theta(s,a) * [ Q_theta(s,a) - r - gamma*(1-d)*[ min(Q_theta1(s',a'), Q_theta2(s',a')) - log(pi(s',a')) ]
 
 Here min(Q_theta1(s',a'), Q_theta2(s',a')) is a constant we evaluate as target value, rather than a function
 we have to obtain the gradient of with respect to theta1/2.
@@ -203,29 +204,68 @@ import numpy as np
 
 import torch
 import torch.nn as nn
+import torch.optim as optim
 from torch.distributions.normal import Normal
 
 from policy_learning_algorithms.policy_learning_algorithm import OffPolicyLearningAlgorithm
 from trainers.unityenv_base_trainer import Buffer
 
-RUN_TESTS = True
-
 class SoftActorCritic(OffPolicyLearningAlgorithm):
+
+    NUMBER_DTYPE = torch.float32
     
     class QNet(nn.Module):
         """
         A neural network approximating the q-value function.
         """
         
-        def __init__(self):
+        def __init__(self, observation_size : int, action_size : int):
+            """
+            Initializes one of the Q-function approximating NN which evaluates
+            the value of any state-action pair.
+            
+            In the original SAC paper found at this page[https://arxiv.org/pdf/1801.01290.pdf],
+            the following are set as found in D. hyperparameters:
+            - number of hidden layers = 2
+            - number of hidden units per layer = 256
+            - nonlinearity = ReLU
+
+            :param int observation_size: The size of the observation input vector.
+            :param int action_size: The size of the action vectors.
+            """
             super(SoftActorCritic.QNet, self).__init__()
-            pass
+            fc_out = 256
+            self.fc1 = nn.Linear(observation_size + action_size, fc_out)
+            self.fc2 = nn.Linear(fc_out, fc_out)
+
+            self.linear_relu_stack = nn.Sequential(
+                self.fc1,
+                nn.ReLU(),
+                self.fc2,
+                nn.ReLU()
+            )
+
+            self.last_fc = nn.Linear(fc_out, 1)
         
-        # def forward(self, obs : torch.tensor, actions : torch.tensor):
-        #     return torch.mean(obs) + actions #TODO placeholder for debug
+        def forward(self, obs : torch.tensor, actions : torch.tensor):
+            """
+            Passes obs and actions vector (or batches of them) into the nn to 
+            return a value indicating each state-action pairs' q-value.
+
+            :param torch.tensor obs: Batch of state vectors in the form [batch, obs_dim].
+            :param torch.tensor actions: Batch of action vectors in the form [batch, act_dim].
+            :return torch.tensor out: Q-values for each batch of state-action pair.
+            """
+            # concatenate input skipping batch dimension to input to nn
+            inp = torch.cat((obs, actions), dim=1)
+            # passing it through the NN
+            x = self.linear_relu_stack(inp)
+            out = self.last_fc(x)
+            return out
         
-        def __call__(self, obs : torch.tensor, actions : torch.tensor):
-            return torch.mean(obs, dim=1, keepdim=True) + actions #TODO placeholder for debug
+        # #TODO placeholder for debug
+        # def __call__(self, obs : torch.tensor, actions : torch.tensor):
+        #     return torch.mean(obs, dim=1, keepdim=True) + actions 
 
     class Policy(nn.Module):
         """
@@ -253,24 +293,29 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
             - variance vector of approximated function (the covariance matrix of this 
             multivariate normal distribution is diagonal)
 
+            In the original SAC paper found at this page[https://arxiv.org/pdf/1801.01290.pdf],
+            the following are set as found in D. hyperparameters:
+            - number of hidden layers = 2
+            - numbre of hidden units per layer = 256
+            - nonlinearity = ReLU
+
             :param int observation_size: The size of the observation input vector.
             :param int action_size: The size of the action vectors.
             """
             super(SoftActorCritic.Policy, self).__init__()
-            fc1_out = 32
-            fc2_out = 64
-            self.fc1 = nn.Linear(observation_size, fc1_out)
-            self.fc2 = nn.Linear(fc1_out, fc2_out)
-            self.mean_layer = nn.Linear(fc2_out, action_size)
-            self.sd_layer = nn.Linear(fc2_out, action_size)
-
-            self.linear_sigmoid_stack = nn.Sequential(
+            fc_out = 256
+            self.fc1 = nn.Linear(observation_size, fc_out)
+            self.fc2 = nn.Linear(fc_out, fc_out)
+            
+            self.linear_relu_stack = nn.Sequential(
                 self.fc1,
-                nn.Sigmoid(),
+                nn.ReLU(),
                 self.fc2,
-                nn.Sigmoid()
+                nn.ReLU()
             )
-            #TODO Spinning up uses more (I think?) layers. Might wanna try that out?
+
+            self.mean_layer = nn.Linear(fc_out, action_size)
+            self.sd_layer = nn.Linear(fc_out, action_size)
 
         def forward(self, 
                     obs : torch.tensor,
@@ -304,169 +349,309 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
             -1 and 1 using the tanh (as done with the original paper to limit possible action range)
             :return torch.tensor log_probs: The log probability for corresponding actions in squashed.
             """
-
-            def correct_for_squash(before : torch.tensor, actions : torch.tensor):
-                """
-                Corrects for the log probabilities following squashing
-                using tanh. 
-
-                Given before is a log probability and the transformation is elementwise tanh,
-                the adjustment is 
-                 [before - Sum(1 - tanh^2(u_i))] 
-                 where u_i is the ith element in a single action.
-                 This is since
-                   1) Correction involves multiplying the original probability with the determinant
-                      of the Jacobian of the transformation.
-                   2) The Jacobian of elementwise tanh is a diagonal, with each entry being each 
-                      element of each action transformed by the derivative of tanh, which is 
-                      (1 - tanh^2(x)). We divide by this factor here as after results from tanh 
-                      correction of before.
-                   3) Since we are dealing with log probabilities, multiplication turn to addition.
-
-                :param torch.tensor before: The log probabilities to be corrected.
-                Will be of the form [num_samples].
-                :param torch.tensor actions: The actions which log probabilities are in question.
-                Will be of the form [num_samples, dimensions_of_action_space].
-                :return torch.tensor after: The log probabilities after being corrected.
-                Will be of the form [num_samples].
-                """
-                print(before.shape, actions.shape, after.shape)
-                # compute the trace of the Jacobian of tanh squashing for each action
-                jacobian_trace = torch.sum((1 - torch.tanh(actions)**2), dim=1)
-                # subtract it from before to yield after
-                after = before - jacobian_trace
-                return after
-
-            def test_correct_for_squash():
-                # TODO!
-                pass
             
             # we squash action values to be between -1 and 1 using tanh
             squashing_function = torch.tanh
 
             # we obtain the mean myu and sd sigma of the gaussian distribution
-            stack_out = self.linear_sigmoid_stack(obs)
+            stack_out = self.linear_relu_stack(obs)
             myus = self.mean_layer(stack_out)
-            sigmas = self.sd_layer(stack_out)
+            sigmas = torch.abs(self.sd_layer(stack_out))
+            # print("myus: ", myus, "myus.shape: ", myus.shape)
+            # print("sigmas: ", sigmas, "sigmas.shape: ", sigmas.shape)
             
             # if deterministic (while in inference), return the mean of distributions
             # corresponding to actions at time of inference, but squashed as needed
             if deterministic: return squashing_function(myus)
             
             # then evaluate the probability that action is chosen under the distribution
-            dist = Normal(loc=myus, scale=sigmas) #Normal under assumption of diagonal covariance mat
-            actions = dist.sample(sample_shape=(num_samples, ))
+            dist = Normal(loc=myus, scale=sigmas) #MultivariateNormal with diagonal covariance
+            actions_num_samples_first = dist.sample(sample_shape=(num_samples, )).to(SoftActorCritic.NUMBER_DTYPE)
+            actions = torch.transpose(actions_num_samples_first, dim0=0, dim1=1)
+            # print("actions: ", actions, "actions.shape: ", actions.shape)
             squashed = squashing_function(actions)
-            log_probs = correct_for_squash(
-                before=dist.log_prob(actions), actions=actions
+            # print("squashed: ", squashed, "squashed.shape: ", squashed.shape)
+
+            # pure_probabilities is log_prob for each action when sampled from each normal distribution
+            # aggregating over the entire action, it becomes their sum (product of independent events but logged)
+            pure_log_probabilities = torch.transpose(dist.log_prob(actions_num_samples_first).to(SoftActorCritic.NUMBER_DTYPE), dim0=0, dim1=1)
+            # print("pure_log_probabilities: ", pure_log_probabilities, "pure_log_probabilities.shape: ", pure_log_probabilities.shape)
+            before_correction = torch.sum(pure_log_probabilities, dim=2)
+            # print("before_correction: ", before_correction, "before_correction.shape: ", before_correction.shape)
+            log_probs = SoftActorCritic.Policy._correct_for_squash(
+                before_correction, actions
                 )
  
             return squashed, log_probs
+        
+        def _correct_for_squash(before : torch.tensor, actions : torch.tensor):
+            """
+            Corrects for the log probabilities following squashing
+            using tanh. 
+
+            Given before is a log probability and the transformation is elementwise tanh,
+            the adjustment is 
+                [before - Sum(1 - tanh^2(u_i))] 
+                where u_i is the ith element in a single action.
+                This is since
+                1) Correction involves multiplying the original probability with the determinant
+                    of the Jacobian of the transformation.
+                2) The Jacobian of elementwise tanh is a diagonal, with each entry being each 
+                    element of each action transformed by the derivative of tanh, which is 
+                    (1 - tanh^2(x)). We divide by this factor here as after results from tanh 
+                    correction of before.
+                3) Since we are dealing with log probabilities, multiplication turn to addition.
+
+            :param torch.tensor before: The log probabilities to be corrected.
+            Will be of the form [batch_size, num_samples].
+            :param torch.tensor actions: The actions which log probabilities are in question.
+            Will be of the form [batch_size, num_samples, action_size].
+            :return torch.tensor after: The log probabilities after being corrected.
+            Will be of the form [batch_size, num_samples].
+            """
+            # compute the trace of the Jacobian of tanh squashing for each action
+            # print("before: ", before, "before.shape: ", before.shape)
+            # print("actions: ", actions, "actions.shape: ", actions.shape)
+            jacobian_trace = torch.sum((1 - torch.tanh(actions)**2), dim=2)
+            # print("jacobian_trace: ", jacobian_trace, "jacobian_trace.shape: ", jacobian_trace.shape)
+            # subtract it from before to yield after
+            after = before - jacobian_trace
+            # print("after: ", after, "after.shape: ", after.shape)
+
+            return after
 
     def __init__(self, 
-                 learning_rate : float, 
-                 discount : float, 
+                 q_net_learning_rate : float,
+                 policy_learning_rate : float, 
+                 discount : float,
                  temperature : float,
                  observation_size : int,
-                 action_size : int
+                 action_size : int,
+                 update_qnet_every_N_gradient_steps : int = 1000,
+                 optimizer : optim.Optimizer = optim.Adam
                  ):
-        self.l_r = learning_rate
+        self.q_net_l_r = q_net_learning_rate
+        self.pol_l_r = policy_learning_rate
         self.d_r = discount
         self.alpha = temperature
+        self.update_qnet_every_N_gradient_steps = update_qnet_every_N_gradient_steps
 
-        self.qnet1 = SoftActorCritic.QNet()
-        self.qnet2 = SoftActorCritic.QNet()
+        self.qnet_update_counter = 1
 
+        # two q-functions are used to approximate values during training
+        self.qnet1 = SoftActorCritic.QNet(observation_size=observation_size, action_size=action_size)
+        self.qnet2 = SoftActorCritic.QNet(observation_size=observation_size, action_size=action_size)
+        self.optim_qnet1 = optimizer(self.qnet1.parameters(), lr=q_net_learning_rate)
+        self.optim_qnet2 = optimizer(self.qnet2.parameters(), lr=q_net_learning_rate)
+        # two target networks are updated less (e.g. every 1000 steps) to compute targets for q-function update
+        self.qnet1_tar = SoftActorCritic.QNet(observation_size=observation_size, action_size=action_size)
+        self.qnet2_tar = SoftActorCritic.QNet(observation_size=observation_size, action_size=action_size)
+        # transfer the weights to sync
+        self._update_target_networks()
+        
+        # initialize policy 
         self.policy = SoftActorCritic.Policy(observation_size=observation_size, action_size=action_size)
+        self.optim_policy = optimizer(self.policy.parameters(), lr=policy_learning_rate)
       
     def update(self, experiences : Buffer):
         # "experiences" is a list of experiences: (obs, action, reward, done, next_obs)
         POLICY_EVAL_NUM_EPOCHS = 1
-        BATCH_SIZE = 8
-        FRESH_ACTION_SAMPLE_SIZE = 8
+        POL_EVAL_BATCH_SIZE = 8
+        POL_EVAL_FRESH_ACTION_SAMPLE_SIZE = 1
+
+        POLICY_IMP_NUM_EPOCHS = 1
+        POL_IMP_BATCH_SIZE = 8
+        POL_IMP_FRESH_ACTION_SAMPLE_SIZE = 1
+        
         
         random.shuffle(experiences)
 
-        observations = torch.from_numpy(np.stack([exp.obs for exp in experiences]))
-        actions = torch.from_numpy(np.stack([exp.action for exp in experiences]))
-        rewards = torch.from_numpy(np.stack([exp.reward for exp in experiences]))
-        dones = torch.from_numpy(np.stack([exp.done for exp in experiences]))
-        next_observations = torch.from_numpy(np.stack([exp.next_obs for exp in experiences]))
+        observations, actions, rewards, dones, next_observations = SoftActorCritic._unzip_experiences(experiences)
+        
         # freshly sample new actions in the current policy for each observations
         # for now, we will sample FRESH_ACTION_SAMPLE_SIZE
         # TODO WHAT IS THE BEST WAY TO FRESHLY SAMPLE THOSE?
-        fresh_action_samples, fresh_log_probs = self.policy(observations, FRESH_ACTION_SAMPLE_SIZE, deterministic=False)
-        print("fresh_action_samples: ", fresh_action_samples, "\n")
-        print("fresh_log_probs: ", fresh_log_probs, "\n")
+        fresh_action_samples, fresh_log_probs = self.policy(observations, POL_EVAL_FRESH_ACTION_SAMPLE_SIZE, deterministic=False)
+        # print("fresh_action_samples: ", fresh_action_samples, "\n")
+        # print("fresh_log_probs: ", fresh_log_probs, "\n")
 
         # 1 - policy evaluation
         for _ in range(POLICY_EVAL_NUM_EPOCHS):
-            for i in range(len(experiences) // BATCH_SIZE):
-                batch_obs = observations[i*BATCH_SIZE : (i+1)*BATCH_SIZE]
+            for i in range(len(experiences) // POL_EVAL_BATCH_SIZE + 1):
+                batch_start = i*POL_EVAL_BATCH_SIZE
+                batch_end = min((i+1)*POL_EVAL_BATCH_SIZE, len(experiences))
+
+                batch_obs = observations[batch_start : batch_end]
                 # print(batch_obs, "\n")
-                batch_actions = actions[i*BATCH_SIZE : (i+1)*BATCH_SIZE]
+                batch_actions = actions[batch_start : batch_end]
                 # print(batch_actions, "\n")
-                batch_rewards = rewards[i*BATCH_SIZE : (i+1)*BATCH_SIZE]
+                batch_rewards = rewards[batch_start : batch_end]
                 # print(batch_rewards, "\n")
-                batch_dones = dones[i*BATCH_SIZE : (i+1)*BATCH_SIZE]
+                batch_dones = dones[batch_start : batch_end]
                 # print(batch_dones, "\n")
-                batch_nextobs = next_observations[i*BATCH_SIZE : (i+1)*BATCH_SIZE]
+                batch_nextobs = next_observations[batch_start : batch_end]
                 # print(batch_nextobs, "\n")
 
-                batch_action_samples = fresh_action_samples[i*BATCH_SIZE : (i+1)*BATCH_SIZE]
-                # first compute target value for all non-terminal experiences
-                # print(batch_action_samples, "\n")
+                # batch_action_samples' shape is [batch_size, POL_EVAL_FRESH_ACTION_SAMPLE_SIZE, action_size]
+                batch_action_samples = fresh_action_samples[batch_start : batch_end]
+                # print("batch_action_samples: ", batch_action_samples, "\n")
+                # print("batch_action_samples.size: ", batch_action_samples.size, "\n")
                 
-                qnet1_preds = torch.stack(
-                                [self.qnet1(batch_nextobs, batch_single_sample) for batch_single_sample in torch.split(batch_action_samples, 1, dim=1)]
-                                )
-                # print("qnet1_preds: ", qnet1_preds, "\n", "qnet1_shape: ", qnet1_preds.shape, "\n")
-                qnet2_preds = torch.stack(
-                                [self.qnet2(batch_nextobs, batch_single_sample) for batch_single_sample in torch.split(batch_action_samples, 1, dim=1)]
-                                )
-                # print("qnet2_preds: ", qnet2_preds, "\n")
-                minimum = torch.minimum(qnet1_preds, qnet2_preds)
-                # print("minimum: ", minimum, "\n")
-                mean_of_minimum = torch.mean(minimum, dim=0, dtype=torch.float32)
-                # print("mean_of_minimum: ", mean_of_minimum, "\n")
-                log = torch.log2(batch_action_samples)
-                # print("log: ", log, "\n")
-                mean_of_log = torch.mean(log)
-                # print("mean_of_log: ", mean_of_log, "\n")
-                targets = (batch_rewards + 
-                    self.d_r * 
-                    mean_of_minimum -
-                    self.alpha *
-                    mean_of_log
-                )
-                # print("targets: ", targets, "\n")
+                # batch_log_probs' shape is [batch_size, POL_EVAL_FRESH_ACTION_SAMPLE_SIZE]
+                batch_log_probs = fresh_log_probs[batch_start : batch_end]
+                # print("batch_log_probs: ", batch_log_probs, "\n")
+                # print("batch_log_probs.size: ", batch_log_probs.size, "\n")
+                
 
+                # first compute target value for all experiences (terminal ones are only the rewards)
+                targets = self._compute_qnet_target(batch_rewards, batch_dones, batch_nextobs, batch_action_samples, batch_log_probs)
+                # print("targets: ", targets, "targets.shape: ", targets.shape, "\n")
 
-                # targets = (batch_rewards + 
-                #     self.d_r * 
-                #     torch.mean(
-                #         torch.minimum(
-                #             torch.stack(
-                #                 [self.qnet1(batch_nextobs, batch_single_sample) for batch_single_sample in torch.split(batch_action_samples, 1, dim=1)]
-                #                 ),
-                #             torch.stack(
-                #                 [self.qnet2(batch_nextobs, batch_single_sample) for batch_single_sample in torch.split(batch_action_samples, 1, dim=1)]
-                #                 )
-                #         ), dim=0, dtype=torch.float32
-                #     ) -
-                #     self.alpha *
-                #     torch.mean(
-                #         torch.log2(batch_action_samples)
-                #     ) #unsure if natural log or log 2; used log 2 for now
-                # )
-                # mask experiences for which done is true = 1
-                # then compute prediction value for all non-terminal experiences
+                # then compute prediction value for all experiences
+                predictions1 = torch.squeeze(self.qnet1(obs=batch_obs, actions=batch_actions), dim=1)
+                predictions2 = torch.squeeze(self.qnet2(obs=batch_obs, actions=batch_actions), dim=1)
+                # print("predictions1: ", predictions1, "predictions1.shape: ", predictions1.shape)
+
                 # finally take loss through MSELoss
+                criterion = nn.MSELoss()
+                loss1 = criterion(predictions1, targets)
+                loss2 = criterion(predictions2, targets)
                 # backpropagate that loss to update q_nets
-                pass
-
+                self.optim_qnet1.zero_grad()
+                loss1.backward(retain_graph=True)
+                self.optim_qnet1.step()
+                
+                self.optim_qnet2.zero_grad()
+                loss2.backward()
+                self.optim_qnet2.step()
+                
+                # finally increment the update counter and increment
+                # update the target network every N gradient steps
+                if self.qnet_update_counter % self.update_qnet_every_N_gradient_steps == 0:
+                    self._update_target_networks()
+        
         # 2 - policy improvement
+        # at this point, the q-network weights are adjusted to reflect the q-value of
+        # the current policy. We just have to take a gradient step with respect to the  
+        # distance between this q-value and the current policy
 
+        # in order to estimate the gradient, we again sample some actions at this point in time.
+        # TODO COULD WE USE ACTIONS SAMPLED BEFORE WHICH WERE USED FOR Q-NETWORK UPDATE? NOT SURE
+        fresh_action_samples2, fresh_log_probs2 = self.policy(observations, POL_IMP_FRESH_ACTION_SAMPLE_SIZE, deterministic=False)
+
+        for _ in range(POLICY_IMP_NUM_EPOCHS):
+            for i in range(len(experiences) // POL_IMP_BATCH_SIZE + 1):
+                batch_start = i*POL_IMP_BATCH_SIZE
+                batch_end = min((i+1)*POL_IMP_BATCH_SIZE, len(experiences))
+
+                batch_obs = observations[batch_start : batch_end]
+                # print(batch_obs, "\n")
+                
+                # batch_action_samples' shape is [batch_size, POL_IMP_FRESH_ACTION_SAMPLE_SIZE, action_size]
+                batch_action_samples = fresh_action_samples2[batch_start : batch_end]
+                # print("batch_action_samples: ", batch_action_samples, "\n")
+                # print("batch_action_samples.size: ", batch_action_samples.size, "\n")
+                
+                # batch_log_probs' shape is [batch_size, POL_IMP_FRESH_ACTION_SAMPLE_SIZE]
+                batch_log_probs = fresh_log_probs2[batch_start : batch_end]
+                # print("batch_log_probs: ", batch_log_probs, "\n")
+                # print("batch_log_probs.size: ", batch_log_probs.size, "\n")
+
+                # Then, we compute the loss function: which relates the exponentiated distribution of
+                # the q-value function with the current policy's distribution, through KL divergence
+                exponentiated_qval = self._compute_exponentiated_qval(batch_obs, batch_action_samples)
+                policy_val = torch.mean(batch_log_probs, dim=1)
+                criterion = nn.KLDivLoss(reduction="batchmean")
+                loss = criterion(policy_val, exponentiated_qval)
+                
+                # then, we improve the policy by minimizing this loss 
+                self.optim_policy.zero_grad()
+                loss.backward()
+                self.optim_policy.step()
+
+    def _compute_exponentiated_qval(self, batch_obs, batch_action_samples):
+        # predicted q_val for each qnet of the shape [batch, num_samples]
+        qnet1_exp_val = torch.cat([
+                                    self.qnet1(batch_obs, torch.squeeze(batch_single_sample, dim=1)) 
+                                    for batch_single_sample in torch.split(batch_action_samples, 1, dim=1)
+                                    ],
+                                    dim=1
+                                )
+        qnet2_exp_val = torch.cat([
+                                    self.qnet2(batch_obs, torch.squeeze(batch_single_sample, dim=1)) 
+                                    for batch_single_sample in torch.split(batch_action_samples, 1, dim=1)
+                                    ],
+                                    dim=1
+                                )
+        # print("qnet1_exp_val: ", qnet1_exp_val, "\n", "qnet1_exp_val.shape: ", qnet1_exp_val.shape, "\n")
+        # the minimum of those predictions of the shape [batch, num_samples]
+        exp_qval_minimum = torch.minimum(qnet1_exp_val, qnet2_exp_val)
+        # print("exp_qval_minimum: ", exp_qval_minimum, "\n", "exp_qval_minimum.shape: ", exp_qval_minimum.shape, "\n")
+        # the mean of those predictions of the shape [batch]
+        mean_exp_qval = torch.mean(exp_qval_minimum, dim=1, dtype=torch.float32)
+        # print("mean_exp_qval: ", mean_exp_qval, "\n", "mean_exp_qval.shape: ", mean_exp_qval.shape, "\n")
+        return mean_exp_qval
+
+    def _compute_qnet_target(self, batch_rewards, batch_dones, batch_nextobs, batch_action_samples, batch_log_probs):
+        qnet1_tar_preds = torch.cat(
+                                [
+                                    self.qnet1_tar(batch_nextobs, torch.squeeze(batch_single_sample, dim=1)) 
+                                    for batch_single_sample in torch.split(batch_action_samples, 1, dim=1)
+                                ], 
+                                dim=1
+                                )
+        # print("qnet1_tar_preds: ", qnet1_tar_preds, "\n", "qnet1_tar_preds.shape: ", qnet1_tar_preds.shape, "\n")
+        qnet2_tar_preds = torch.cat(
+                                [
+                                    self.qnet2_tar(batch_nextobs, torch.squeeze(batch_single_sample, dim=1)) 
+                                    for batch_single_sample in torch.split(batch_action_samples, 1, dim=1)
+                                ], 
+                                dim=1
+                                )
+        # print("qnet2_tar_preds: ", qnet2_tar_preds, "\n")
+        minimum = torch.minimum(qnet1_tar_preds, qnet2_tar_preds)
+        # print("minimum: ", minimum, "\n")
+        mean_of_minimum = torch.mean(minimum, dim=1, dtype=SoftActorCritic.NUMBER_DTYPE)
+        # print("mean_of_minimum: ", mean_of_minimum, "\n")
+        mean_of_log = torch.mean(batch_log_probs, dim=1)
+        # print("mean_of_log: ", mean_of_log, "\n")
+        targets = (
+                    batch_rewards + 
+                    self.d_r *
+                    (1.0 - batch_dones.to(SoftActorCritic.NUMBER_DTYPE)) *
+                    (
+                        mean_of_minimum -
+                        self.alpha *
+                        mean_of_log
+                    )
+                )
+        # print("targets: ", targets, "\n")
+
+        return targets
+    
+    def _update_target_networks(self):
+        """
+        Updates the target networks to hold values from the 
+        correspondingly q-networks.
+        """
+        self.qnet1_tar.load_state_dict(self.qnet1.state_dict())
+        self.qnet2_tar.load_state_dict(self.qnet2.state_dict())
+
+    def _unzip_experiences(experiences : Buffer):
+        """
+        Unzips the experiences into groups of observations, actions, rewards, 
+        done flags, and next observations, to be returned.
+
+        :param Buffer experiences: A Buffer containing obs, action, reward, done and next_obs.
+        :return Tuple[torch.tensor]: Tensors of each component in the Buffer; 
+        observations, actions, rewards, dones, next_observations.
+        """
+        observations      = torch.from_numpy(np.stack([exp.obs      for exp in experiences])).to(SoftActorCritic.NUMBER_DTYPE)
+        actions           = torch.from_numpy(np.stack([exp.action   for exp in experiences])).to(SoftActorCritic.NUMBER_DTYPE)
+        rewards           = torch.from_numpy(np.stack([exp.reward   for exp in experiences])).to(SoftActorCritic.NUMBER_DTYPE)
+        dones             = torch.from_numpy(np.stack([exp.done     for exp in experiences]))
+        next_observations = torch.from_numpy(np.stack([exp.next_obs for exp in experiences])).to(SoftActorCritic.NUMBER_DTYPE)
+        return observations,actions,rewards,dones,next_observations
     
     def get_optimal_action(self, state):
         pass

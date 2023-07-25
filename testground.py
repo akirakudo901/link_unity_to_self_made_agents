@@ -1,5 +1,6 @@
 
 import numpy as np
+import torch
 
 from policy_learning_algorithms.soft_actor_critic import SoftActorCritic
 from trainers.unityenv_base_trainer import Buffer, Experience
@@ -23,22 +24,31 @@ from trainers.unityenv_base_trainer import Buffer, Experience
 
 
 
-from torch.distributions.normal import Normal
-import torch
+# from torch.distributions.normal import Normal
+# import torch
 
-# Goal is to understand how torch distributions work
-myus, sigmas = torch.tensor([0.0, 100.0]), torch.tensor([1.0, 15.0])
-num_samples = 4
+# # Goal is to understand how torch distributions work
+# myus, sigmas = torch.tensor([0.0, 100.0]), torch.tensor([1.0, 15.0])
+# num_samples = 4
 
-dist = Normal(loc=myus, scale=sigmas)
-actions = dist.sample(sample_shape=(num_samples, ))
-squashed = torch.tanh(actions)
+# dist = Normal(loc=myus, scale=sigmas)
+# actions = dist.sample(sample_shape=(num_samples, ))
+# squashed = torch.tanh(actions)
 
-log_probs = dist.log_prob(actions)
+# log_probs = dist.log_prob(actions)
 
 
-# log_probs = correct_for_squash(
-#     dist.log_prob(actions)
-#     )
+# # log_probs = correct_for_squash(
+# #     dist.log_prob(actions)
+# #     )
 
-print("actions: ", actions, "\n squashed: ", squashed, "\n log_probs: ", log_probs)
+# print("actions: ", actions, "\n squashed: ", squashed, "\n log_probs: ", log_probs)
+
+# bool_t = torch.tensor([True, False, False])
+# float_t = bool_t.to(torch.float32)
+# print(float_t)
+
+# [batch, num_samples]
+t1 = torch.tensor([[0, 1, 2, 3, 4], [5, 6, 7, 8, 9]]).to(torch.float32)
+t2 = torch.mean(t1, dim=1)
+print(t2, t2.shape)

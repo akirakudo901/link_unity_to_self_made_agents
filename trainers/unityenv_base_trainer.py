@@ -25,6 +25,7 @@ class Experience(NamedTuple):
     - reward : float*
     - done flag : bool
     - next observation : an np.ndarray*
+    
     *The types for observations and rewards are given as indicated in:
     https://unity-technologies.github.io/ml-agents/Python-LLAPI-Documentation/#mlagents_envs.base_env
     """
