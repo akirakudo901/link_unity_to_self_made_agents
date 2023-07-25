@@ -12,7 +12,7 @@ import numpy as np
 import torch
 from torch.nn import Parameter
 
-from gridworld_base_trainer import GridWorldExperience, Buffer
+from gridworld_example_breakdown.gridworld_base_trainer import GridWorldExperience, Buffer
 
 DEFAULT_Q_FOLDER = "./gridworld_example_breakdown/q_networks"
 

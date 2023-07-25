@@ -462,29 +462,35 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
         :param state: The state of observation in question to which this algorithm was applied.
         Could be a numpy array or torch tensor? TODO ASCERTAIN!
         """
-        return self.get_optimal_action(self, state)
+        return self.get_optimal_action(state)
       
     def update(self, experiences : Buffer):
         # "experiences" is a list of experiences: (obs, action, reward, done, next_obs)
         POLICY_EVAL_NUM_EPOCHS = 1
-        POL_EVAL_BATCH_SIZE = 8
+        POL_EVAL_BATCH_SIZE = 1028
         POL_EVAL_FRESH_ACTION_SAMPLE_SIZE = 1
 
         POLICY_IMP_NUM_EPOCHS = 1
-        POL_IMP_BATCH_SIZE = 8
+        POL_IMP_BATCH_SIZE = 1028
         POL_IMP_FRESH_ACTION_SAMPLE_SIZE = 1
-        
         
         random.shuffle(experiences)
 
         observations, actions, rewards, dones, next_observations = SoftActorCritic._unzip_experiences(experiences)
+        # print("observations.shape: ", observations.shape)
+        # print("actions.shape: ", actions.shape)
+        # print("rewards.shape: ", rewards.shape)
+        # print("dones.shape: ", dones.shape)
+        # print("next_observations.shape: ", next_observations.shape)
         
         # freshly sample new actions in the current policy for each observations
         # for now, we will sample FRESH_ACTION_SAMPLE_SIZE
         # TODO WHAT IS THE BEST WAY TO FRESHLY SAMPLE THOSE?
         fresh_action_samples, fresh_log_probs = self.policy(observations, POL_EVAL_FRESH_ACTION_SAMPLE_SIZE, deterministic=False)
         # print("fresh_action_samples: ", fresh_action_samples, "\n")
+        # print("fresh_action_samples.shape: ", fresh_action_samples.shape, "\n")
         # print("fresh_log_probs: ", fresh_log_probs, "\n")
+        # print("fresh_log_probs.shape: ", fresh_log_probs.shape, "\n")
 
         # 1 - policy evaluation
         for _ in range(POLICY_EVAL_NUM_EPOCHS):
@@ -492,26 +498,31 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
                 batch_start = i*POL_EVAL_BATCH_SIZE
                 batch_end = min((i+1)*POL_EVAL_BATCH_SIZE, len(experiences))
 
-                batch_obs = observations[batch_start : batch_end]
+                batch_obs = observations[batch_start : batch_end].detach()
                 # print(batch_obs, "\n")
-                batch_actions = actions[batch_start : batch_end]
+                # print("batch_obs.shape: ", batch_obs.shape, "\n")
+                batch_actions = actions[batch_start : batch_end].detach()
                 # print(batch_actions, "\n")
-                batch_rewards = rewards[batch_start : batch_end]
+                # print("batch_actions.shape: ", batch_actions.shape, "\n")
+                batch_rewards = rewards[batch_start : batch_end].detach()
                 # print(batch_rewards, "\n")
-                batch_dones = dones[batch_start : batch_end]
+                # print("batch_rewards.shape: ", batch_rewards.shape, "\n")
+                batch_dones = dones[batch_start : batch_end].detach()
                 # print(batch_dones, "\n")
-                batch_nextobs = next_observations[batch_start : batch_end]
+                # print("batch_dones.shape: ", batch_dones.shape, "\n")
+                batch_nextobs = next_observations[batch_start : batch_end].detach()
                 # print(batch_nextobs, "\n")
+                # print("batch_nextobs.shape: ", batch_nextobs.shape, "\n")
 
                 # batch_action_samples' shape is [batch_size, POL_EVAL_FRESH_ACTION_SAMPLE_SIZE, action_size]
-                batch_action_samples = fresh_action_samples[batch_start : batch_end]
+                batch_action_samples = fresh_action_samples[batch_start : batch_end].detach()
                 # print("batch_action_samples: ", batch_action_samples, "\n")
-                # print("batch_action_samples.size: ", batch_action_samples.size, "\n")
+                # print("batch_action_samples.shape: ", batch_action_samples.shape, "\n")
                 
                 # batch_log_probs' shape is [batch_size, POL_EVAL_FRESH_ACTION_SAMPLE_SIZE]
-                batch_log_probs = fresh_log_probs[batch_start : batch_end]
+                batch_log_probs = fresh_log_probs[batch_start : batch_end].detach()
                 # print("batch_log_probs: ", batch_log_probs, "\n")
-                # print("batch_log_probs.size: ", batch_log_probs.size, "\n")
+                # print("batch_log_probs.shape: ", batch_log_probs.shape, "\n")
                 
 
                 # first compute target value for all experiences (terminal ones are only the rewards)
@@ -555,16 +566,16 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
                 batch_start = i*POL_IMP_BATCH_SIZE
                 batch_end = min((i+1)*POL_IMP_BATCH_SIZE, len(experiences))
 
-                batch_obs = observations[batch_start : batch_end]
+                batch_obs = observations[batch_start : batch_end].detach()
                 # print(batch_obs, "\n")
                 
                 # batch_action_samples' shape is [batch_size, POL_IMP_FRESH_ACTION_SAMPLE_SIZE, action_size]
-                batch_action_samples = fresh_action_samples2[batch_start : batch_end]
+                batch_action_samples = fresh_action_samples2[batch_start : batch_end].detach()
                 # print("batch_action_samples: ", batch_action_samples, "\n")
                 # print("batch_action_samples.size: ", batch_action_samples.size, "\n")
                 
                 # batch_log_probs' shape is [batch_size, POL_IMP_FRESH_ACTION_SAMPLE_SIZE]
-                batch_log_probs = fresh_log_probs2[batch_start : batch_end]
+                batch_log_probs = fresh_log_probs2[batch_start : batch_end].detach()
                 # print("batch_log_probs: ", batch_log_probs, "\n")
                 # print("batch_log_probs.size: ", batch_log_probs.size, "\n")
 
@@ -665,6 +676,21 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
         return observations,actions,rewards,dones,next_observations
     
     def get_optimal_action(self, state):
+        """
+        Computes the currently optimal action given an observation state.
+        State can be either a torch tensor or numpy array, both being converted
+        into a torch tensor before further processing is done.
+
+        :param state: The observation state given as torch.tensor or np.ndarray.
+        :return torch.tensor action: The action the policy deems optimal. 
+        """
+        # if type is not torch.tensor, try casting
+        if type(state) != type(torch.tensor([0])):
+            try:
+                state = torch.from_numpy(state)
+            except:
+                raise Exception("Error in reading observation within SAC get_optimal_action; \
+                                'state' needs to be one of torch.tensor or np.ndarray.")
         action = self.policy(obs=state, deterministic=True)
         return action
     

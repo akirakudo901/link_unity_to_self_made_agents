@@ -9,27 +9,28 @@ import random
 from typing import List
 
 from mlagents_envs.environment import UnityEnvironment
-# from mlagents_envs.registry import default_registry
+from mlagents_envs.registry import default_registry
 import matplotlib.pyplot as plt
 
 import torch
 
-from visual_q_network import VisualQNetwork
-from gridworld_base_trainer import Buffer, GridWorldBaseTrainer
+from gridworld_example_breakdown.visual_q_network import VisualQNetwork
+from gridworld_example_breakdown.gridworld_base_trainer import Buffer, GridWorldBaseTrainer
 
 SAVE_Q_NET_AFTER_TRAINING = True
 
 """
 ORIGINAL CODE WHICH SET UP THE ENVIRONMENT:
 
-# Create the GridWorld Environment from the registry
-env = default_registry["GridWorld"].make()
-print("GridWorld environment created.")
 """
 
 print("About to create the environment! Press the play button to initiate training!")
-env = UnityEnvironment(file_name=None, seed=1, side_channels=[])
-print("Successfully created the environment!")
+# env = UnityEnvironment(file_name=None, seed=1, side_channels=[])
+# Create the GridWorld Environment from the registry
+env = default_registry["GridWorld"].make()
+print("GridWorld environment created.")
+
+# print("Successfully created the environment!")
 
 num_actions = 5
 # The number of training steps that will be performed

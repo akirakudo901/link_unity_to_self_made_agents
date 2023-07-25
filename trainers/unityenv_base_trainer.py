@@ -330,16 +330,34 @@ class OffPolicyBaseTrainer(OnPolicyBaseTrainer):
 
             if save_after_training: self.learning_algorithm.save(task_name)
 
-            return self.learning_algorithm
-
         except KeyboardInterrupt:
             print("\nTraining interrupted, continue to next cell to save to save the model.")
         finally:
             self.env.close()
 
-        # Show the training graph
-        try:
-            plt.plot(range(num_training_steps), cumulative_rewards)
-            plt.show()
-        except ValueError:
-            print("\nPlot failed on interrupted training.")
+            # Show the training graph
+            try:
+                plt.plot(range(num_training_steps), cumulative_rewards)
+                plt.savefig(f"{task_name}_cumulative_reward_fig.png")
+                plt.show()
+            except ValueError:
+                print("\nPlot failed on interrupted training.")
+                
+            return self.learning_algorithm
+    
+    def evaluate(
+            self,
+            num_training_steps : int,
+            num_new_experience : int,
+            max_buffer_size : int,
+            exploration_function,
+            epsilon : float,
+            save_after_training : bool,
+            task_name : str
+            ):
+            self.generate_batch_of_experiences(
+                    buffer_size=100,
+                    exploration_function=exploration_function,
+                    epsilon=0,
+                    behavior_name=self.behavior_name
+                )
