@@ -383,7 +383,7 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
             log_probs = SoftActorCritic.Policy._correct_for_squash(
                 before_correction, actions
                 )
- 
+            
             return squashed, log_probs
         
         def _correct_for_squash(before : torch.tensor, actions : torch.tensor):
@@ -419,7 +419,7 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
             # subtract it from before to yield after
             after = before - jacobian_trace
             # print("after: ", after, "after.shape: ", after.shape)
-
+            
             return after
 
     def __init__(self, 
@@ -484,10 +484,8 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
         POLICY_IMP_NUM_EPOCHS = 1
         POL_IMP_BATCH_SIZE = 1028
         POL_IMP_FRESH_ACTION_SAMPLE_SIZE = 1
-        
         random.shuffle(experiences)
-
-        observations, actions, rewards, dones, next_observations = SoftActorCritic._unzip_experiences(experiences)
+        observations, actions, rewards, dones, next_observations = SoftActorCritic._unzip_experiences(experiences, device=self.device)
         # print("observations.shape: ", observations.shape)
         # print("actions.shape: ", actions.shape)
         # print("rewards.shape: ", rewards.shape)
@@ -535,7 +533,6 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
                 # print("batch_log_probs: ", batch_log_probs, "\n")
                 # print("batch_log_probs.shape: ", batch_log_probs.shape, "\n")
                 
-
                 # first compute target value for all experiences (terminal ones are only the rewards)
                 targets = self._compute_qnet_target(batch_rewards, batch_dones, batch_nextobs, batch_action_samples, batch_log_probs)
                 # print("targets: ", targets, "targets.shape: ", targets.shape, "\n")
@@ -544,7 +541,7 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
                 predictions1 = torch.squeeze(self.qnet1(obs=batch_obs, actions=batch_actions), dim=1)
                 predictions2 = torch.squeeze(self.qnet2(obs=batch_obs, actions=batch_actions), dim=1)
                 # print("predictions1: ", predictions1, "predictions1.shape: ", predictions1.shape)
-
+                
                 # finally take loss through MSELoss
                 criterion = nn.MSELoss()
                 loss1 = criterion(predictions1, targets)
@@ -562,16 +559,16 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
                 # update the target network every N gradient steps
                 if self.qnet_update_counter % self.update_qnet_every_N_gradient_steps == 0:
                     self._update_target_networks()
-        
+                
         # 2 - policy improvement
         # at this point, the q-network weights are adjusted to reflect the q-value of
         # the current policy. We just have to take a gradient step with respect to the  
         # distance between this q-value and the current policy
-
+        
         # in order to estimate the gradient, we again sample some actions at this point in time.
         # TODO COULD WE USE ACTIONS SAMPLED BEFORE WHICH WERE USED FOR Q-NETWORK UPDATE? NOT SURE
         fresh_action_samples2, fresh_log_probs2 = self.policy(observations, POL_IMP_FRESH_ACTION_SAMPLE_SIZE, deterministic=False)
-
+        
         for _ in range(POLICY_IMP_NUM_EPOCHS):
             for i in range(len(experiences) // POL_IMP_BATCH_SIZE + 1):
                 batch_start = i*POL_IMP_BATCH_SIZE
@@ -589,7 +586,7 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
                 batch_log_probs = fresh_log_probs2[batch_start : batch_end].detach()
                 # print("batch_log_probs: ", batch_log_probs, "\n")
                 # print("batch_log_probs.size: ", batch_log_probs.size, "\n")
-
+                
                 # Then, we compute the loss function: which relates the exponentiated distribution of
                 # the q-value function with the current policy's distribution, through KL divergence
                 exponentiated_qval = self._compute_exponentiated_qval(batch_obs, batch_action_samples)
@@ -601,7 +598,7 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
                 self.optim_policy.zero_grad()
                 loss.backward()
                 self.optim_policy.step()
-
+                
     def _compute_exponentiated_qval(self, batch_obs, batch_action_samples):
         # predicted q_val for each qnet of the shape [batch, num_samples]
         qnet1_exp_val = torch.cat([

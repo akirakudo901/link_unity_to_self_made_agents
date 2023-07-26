@@ -25,16 +25,16 @@ ORIGINAL CODE WHICH SET UP THE ENVIRONMENT:
 """
 
 print("About to create the environment! Press the play button to initiate training!")
-# env = UnityEnvironment(file_name=None, seed=1, side_channels=[])
+env = UnityEnvironment(file_name=None, seed=1, side_channels=[])
 # Create the GridWorld Environment from the registry
-env = default_registry["GridWorld"].make()
+# env = default_registry["GridWorld"].make()
 print("GridWorld environment created.")
 
 # print("Successfully created the environment!")
 
 num_actions = 5
 # The number of training steps that will be performed
-NUM_TRAINING_STEPS = int(os.getenv('QLEARNING_NUM_TRAINING_STEPS', 70))
+NUM_TRAINING_STEPS = int(os.getenv('QLEARNING_NUM_TRAINING_STEPS', 5))
 # The number of experiences to collect per training step
 NUM_NEW_EXP = int(os.getenv('QLEARNING_NUM_NEW_EXP', 1000))
 # The maximum size of the Buffer

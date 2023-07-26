@@ -119,7 +119,7 @@ class OnPolicyBaseTrainer:
          - an int of the agent's id as unique identifier
         """
         decision_steps, terminal_steps = self.env.get_steps(behavior_name)
-
+        
         # for every agent who requires a new decision
         for decision_agent_id in decision_steps.agent_id:
             
@@ -147,7 +147,6 @@ class OnPolicyBaseTrainer:
                 self.cumulative_reward_by_agent[decision_agent_id] += decision_steps.reward[dec_agent_idx]
             # update last observation
             self.last_observation_by_agent[decision_agent_id] = decision_steps.obs[0][dec_agent_idx].copy()
-
 
         # for every agent which has reached a terminal state
         for terminal_agent_id in terminal_steps.agent_id:
@@ -183,23 +182,27 @@ class OnPolicyBaseTrainer:
         if len(decision_steps.obs[0]) != 0:
             # Generate actions for agents while applying the exploration function to 
             # promote exploration of the world
+            
             best_actions = exploration_function(
                 self.learning_algorithm(decision_steps.obs[0]), 
                 epsilon,
                 self.env
             )
+            
             # Store info of action picked to generate new experience in the next loop
             for agent_idx, agent_id in enumerate(decision_steps.agent_id):
                 self.last_action_by_agent[agent_id] = best_actions[agent_idx]
             # Set the actions in the environment
             # Unity Environments expect ActionTuple instances.
+            
             action_tuple = ActionTuple()
             if self.env.behavior_specs[behavior_name].action_spec.is_continuous:
+                
                 action_tuple.add_continuous(best_actions)
             else:
                 action_tuple.add_discrete(best_actions)
             self.env.set_actions(behavior_name, action_tuple)
-        
+            
         # Perform a step in the simulation
         self.env.step()
 
@@ -268,6 +271,7 @@ class OffPolicyBaseTrainer(OnPolicyBaseTrainer):
                 epsilon=epsilon,
                 behavior_name=behavior_name
             )
+            
             buffer.extend([experience for trajectory in new_trajectories for experience in trajectory])
             cumulative_reward.extend(new_cumulative_rewards)
         # Cut down the number of experience to buffer_size
@@ -303,29 +307,25 @@ class OffPolicyBaseTrainer(OnPolicyBaseTrainer):
         self.env.reset()
 
         try:
-            print(1)
             cumulative_rewards: List[float] = []
             experiences : Buffer = []
 
-            print(2)
-            # for _ in tqdm(range(num_training_steps)):
-            for _ in range(num_training_steps):
-                print(3)
-            
+            for _ in tqdm(range(num_training_steps)):
+            # for _ in range(num_training_steps):
+                
                 new_exp, _ = self.generate_batch_of_experiences(
                     buffer_size=num_new_experience,
                     exploration_function=exploration_function,
                     epsilon=epsilon,
                     behavior_name=self.behavior_name
                 )
-                print(4)
-            
+                
                 experiences.extend(new_exp)
                 random.shuffle(experiences)
                 if len(experiences) > max_buffer_size:
                     experiences = experiences[:max_buffer_size]
                 self.learning_algorithm.update(experiences)
-
+                
                 _, reward = self.generate_batch_of_experiences(
                     buffer_size=100,
                     exploration_function=exploration_function,
@@ -333,25 +333,19 @@ class OffPolicyBaseTrainer(OnPolicyBaseTrainer):
                     behavior_name=self.behavior_name
                 )
                 cumulative_rewards.append(reward)
-
-            print(5)
+                
             if save_after_training: self.learning_algorithm.save(task_name)
 
         except KeyboardInterrupt:
             print("\nTraining interrupted, continue to next cell to save to save the model.")
-        except:
-            raise Exception("Yeah, something goes wrong.")
         finally:
-            print(6)
             self.env.close()
 
             # Show the training graph
             try:
-                print(7)
                 plt.plot(range(num_training_steps), cumulative_rewards)
                 plt.savefig(f"{task_name}_cumulative_reward_fig.png")
                 plt.show()
-                print(8)
             except ValueError:
                 print("\nPlot failed on interrupted training.")
                 

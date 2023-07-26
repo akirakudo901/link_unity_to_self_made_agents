@@ -17,9 +17,11 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print('Using device:', device)
 print()
 
+cpu_device = torch.device("cpu")
+
 print("About to create the environment! Press the play button to initiate training!")
-# env = UnityEnvironment(file_name=None, seed=1, side_channels=[])
-env = default_registry["Walker"].make()
+env = UnityEnvironment(file_name=None, seed=1, side_channels=[])
+# env = default_registry["Walker"].make()
 print("Successfully created the environment!")
 
 # reset the environment to set up behavior_specs
@@ -45,7 +47,7 @@ learning_algorithm = SoftActorCritic(
 trainer = OffPolicyBaseTrainer(env, behavior_name, learning_algorithm)
 
 # The number of training steps that will be performed
-NUM_TRAINING_STEPS = 10
+NUM_TRAINING_STEPS = 50
 # The number of experiences to collect per training step
 NUM_NEW_EXP = 500
 # The maximum size of the Buffer
@@ -59,7 +61,7 @@ TASK_NAME = "SAC" + "_Walker"
 def no_exploration(actions : torch.tensor, epsilon : float, env : BaseEnv):
     # since exploration is inherent in SAC, we don't need epsilon to do anything
     # we however need to convert torch.tensor back to numpy arrays.
-    return actions.detach().numpy()
+    return actions.detach().to(cpu_device).numpy()
 
 l_a = trainer.train(
     num_training_steps=NUM_TRAINING_STEPS, 
