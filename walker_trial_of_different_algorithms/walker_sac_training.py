@@ -2,7 +2,7 @@
 An integration of the Walker environment with SAC.
 """
 
-from mlagents_envs.environment import BaseEnv
+from mlagents_envs.environment import BaseEnv, UnityEnvironment
 from mlagents_envs.registry import default_registry
 import torch
 
@@ -10,6 +10,12 @@ from policy_learning_algorithms.soft_actor_critic import SoftActorCritic
 from trainers.unityenv_base_trainer import OffPolicyBaseTrainer
 
 SAVE_AFTER_TRAINING = True
+
+# set up a device first
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+# device = torch.device('cpu')
+print('Using device:', device)
+print()
 
 print("About to create the environment! Press the play button to initiate training!")
 # env = UnityEnvironment(file_name=None, seed=1, side_channels=[])
@@ -32,13 +38,14 @@ learning_algorithm = SoftActorCritic(
     observation_size=env.behavior_specs[behavior_name].observation_specs[0].shape[0],
     action_size=env.behavior_specs[behavior_name].action_spec.continuous_size, 
     update_qnet_every_N_gradient_steps=1000,
+    device=device
     # leave the optimizer as the default = Adam
     )
 
 trainer = OffPolicyBaseTrainer(env, behavior_name, learning_algorithm)
 
 # The number of training steps that will be performed
-NUM_TRAINING_STEPS = 200
+NUM_TRAINING_STEPS = 10
 # The number of experiences to collect per training step
 NUM_NEW_EXP = 500
 # The maximum size of the Buffer

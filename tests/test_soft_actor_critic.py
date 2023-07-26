@@ -81,7 +81,8 @@ class TestSoftActorCritic_Policy(unittest.TestCase):
 
         testSAC = SoftActorCritic(
             q_net_learning_rate=1e-3, policy_learning_rate=1e-3, discount=DISCOUNT, 
-            temperature=TEMPERATURE, observation_size=OBSERVATION_SIZE, action_size=ACTION_SIZE)
+            temperature=TEMPERATURE, observation_size=OBSERVATION_SIZE, action_size=ACTION_SIZE, 
+            device="cpu")
 
         qnet1 = SoftActorCritic.QNet(observation_size=OBSERVATION_SIZE, action_size=ACTION_SIZE)
         qnet2 = SoftActorCritic.QNet(observation_size=OBSERVATION_SIZE, action_size=ACTION_SIZE)
@@ -149,7 +150,8 @@ class TestSoftActorCritic_Policy(unittest.TestCase):
 
         testSAC = SoftActorCritic(
             q_net_learning_rate=1e-3, policy_learning_rate=1e-3, discount=DISCOUNT, 
-            temperature=TEMPERATURE, observation_size=OBSERVATION_SIZE, action_size=ACTION_SIZE)
+            temperature=TEMPERATURE, observation_size=OBSERVATION_SIZE, action_size=ACTION_SIZE,
+            device="cpu")
 
         qnet1 = SoftActorCritic.QNet(observation_size=OBSERVATION_SIZE, action_size=ACTION_SIZE)
         qnet2 = SoftActorCritic.QNet(observation_size=OBSERVATION_SIZE, action_size=ACTION_SIZE)
@@ -196,7 +198,8 @@ class TestSoftActorCritic_Policy(unittest.TestCase):
 
         testSAC = SoftActorCritic(
             q_net_learning_rate=1e-3, policy_learning_rate=1e-3, discount=DISCOUNT, 
-            temperature=TEMPERATURE, observation_size=OBSERVATION_SIZE, action_size=ACTION_SIZE)
+            temperature=TEMPERATURE, observation_size=OBSERVATION_SIZE, action_size=ACTION_SIZE,
+            device="cpu")
 
         # assuming a batch of two experiences
         batch_obs = np.array([[7.0, 8.0, 9.0], [10.0, 11.0, 12.0]]) #observation_size is 3

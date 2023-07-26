@@ -303,17 +303,23 @@ class OffPolicyBaseTrainer(OnPolicyBaseTrainer):
         self.env.reset()
 
         try:
-            
+            print(1)
             cumulative_rewards: List[float] = []
             experiences : Buffer = []
 
-            for _ in tqdm(range(num_training_steps)):
+            print(2)
+            # for _ in tqdm(range(num_training_steps)):
+            for _ in range(num_training_steps):
+                print(3)
+            
                 new_exp, _ = self.generate_batch_of_experiences(
                     buffer_size=num_new_experience,
                     exploration_function=exploration_function,
                     epsilon=epsilon,
                     behavior_name=self.behavior_name
                 )
+                print(4)
+            
                 experiences.extend(new_exp)
                 random.shuffle(experiences)
                 if len(experiences) > max_buffer_size:
@@ -328,18 +334,24 @@ class OffPolicyBaseTrainer(OnPolicyBaseTrainer):
                 )
                 cumulative_rewards.append(reward)
 
+            print(5)
             if save_after_training: self.learning_algorithm.save(task_name)
 
         except KeyboardInterrupt:
             print("\nTraining interrupted, continue to next cell to save to save the model.")
+        except:
+            raise Exception("Yeah, something goes wrong.")
         finally:
+            print(6)
             self.env.close()
 
             # Show the training graph
             try:
+                print(7)
                 plt.plot(range(num_training_steps), cumulative_rewards)
                 plt.savefig(f"{task_name}_cumulative_reward_fig.png")
                 plt.show()
+                print(8)
             except ValueError:
                 print("\nPlot failed on interrupted training.")
                 

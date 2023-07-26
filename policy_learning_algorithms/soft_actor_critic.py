@@ -430,29 +430,40 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
                  observation_size : int,
                  action_size : int,
                  update_qnet_every_N_gradient_steps : int = 1000,
-                 optimizer : optim.Optimizer = optim.Adam
+                 optimizer : optim.Optimizer = optim.Adam, 
+                 device = None
                  ):
         self.q_net_l_r = q_net_learning_rate
         self.pol_l_r = policy_learning_rate
         self.d_r = discount
         self.alpha = temperature
         self.update_qnet_every_N_gradient_steps = update_qnet_every_N_gradient_steps
+        
+        if device == None:
+            self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+            print('Device was not specified, so using:', self.device, '.')
+        elif device == 'cpu':
+            self.device = torch.device('cpu')
+            print("Device specified as cpu; using: ", self.device, ".")
+        else:
+            self.device = device
+            print('Using:', self.device, ' as specified.')
 
         self.qnet_update_counter = 1
 
         # two q-functions are used to approximate values during training
-        self.qnet1 = SoftActorCritic.QNet(observation_size=observation_size, action_size=action_size)
-        self.qnet2 = SoftActorCritic.QNet(observation_size=observation_size, action_size=action_size)
+        self.qnet1 = SoftActorCritic.QNet(observation_size=observation_size, action_size=action_size).to(self.device)
+        self.qnet2 = SoftActorCritic.QNet(observation_size=observation_size, action_size=action_size).to(self.device)
         self.optim_qnet1 = optimizer(self.qnet1.parameters(), lr=q_net_learning_rate)
         self.optim_qnet2 = optimizer(self.qnet2.parameters(), lr=q_net_learning_rate)
         # two target networks are updated less (e.g. every 1000 steps) to compute targets for q-function update
-        self.qnet1_tar = SoftActorCritic.QNet(observation_size=observation_size, action_size=action_size)
-        self.qnet2_tar = SoftActorCritic.QNet(observation_size=observation_size, action_size=action_size)
+        self.qnet1_tar = SoftActorCritic.QNet(observation_size=observation_size, action_size=action_size).to(self.device)
+        self.qnet2_tar = SoftActorCritic.QNet(observation_size=observation_size, action_size=action_size).to(self.device)
         # transfer the weights to sync
         self._update_target_networks()
         
         # initialize policy 
-        self.policy = SoftActorCritic.Policy(observation_size=observation_size, action_size=action_size)
+        self.policy = SoftActorCritic.Policy(observation_size=observation_size, action_size=action_size).to(self.device)
         self.optim_policy = optimizer(self.policy.parameters(), lr=policy_learning_rate)
     
     def __call__(self, state):
@@ -659,7 +670,7 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
         self.qnet1_tar.load_state_dict(self.qnet1.state_dict())
         self.qnet2_tar.load_state_dict(self.qnet2.state_dict())
 
-    def _unzip_experiences(experiences : Buffer):
+    def _unzip_experiences(experiences : Buffer, device = None):
         """
         Unzips the experiences into groups of observations, actions, rewards, 
         done flags, and next observations, to be returned.
@@ -668,11 +679,18 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
         :return Tuple[torch.tensor]: Tensors of each component in the Buffer; 
         observations, actions, rewards, dones, next_observations.
         """
-        observations      = torch.from_numpy(np.stack([exp.obs      for exp in experiences])).to(SoftActorCritic.NUMBER_DTYPE)
-        actions           = torch.from_numpy(np.stack([exp.action   for exp in experiences])).to(SoftActorCritic.NUMBER_DTYPE)
-        rewards           = torch.from_numpy(np.stack([exp.reward   for exp in experiences])).to(SoftActorCritic.NUMBER_DTYPE)
-        dones             = torch.from_numpy(np.stack([exp.done     for exp in experiences]))
-        next_observations = torch.from_numpy(np.stack([exp.next_obs for exp in experiences])).to(SoftActorCritic.NUMBER_DTYPE)
+        if device != None:
+            observations      = torch.from_numpy(np.stack([exp.obs      for exp in experiences])).to(SoftActorCritic.NUMBER_DTYPE).to(device)
+            actions           = torch.from_numpy(np.stack([exp.action   for exp in experiences])).to(SoftActorCritic.NUMBER_DTYPE).to(device)
+            rewards           = torch.from_numpy(np.stack([exp.reward   for exp in experiences])).to(SoftActorCritic.NUMBER_DTYPE).to(device)
+            dones             = torch.from_numpy(np.stack([exp.done     for exp in experiences])).to(device)
+            next_observations = torch.from_numpy(np.stack([exp.next_obs for exp in experiences])).to(SoftActorCritic.NUMBER_DTYPE).to(device)
+        else:
+            observations      = torch.from_numpy(np.stack([exp.obs      for exp in experiences])).to(SoftActorCritic.NUMBER_DTYPE)
+            actions           = torch.from_numpy(np.stack([exp.action   for exp in experiences])).to(SoftActorCritic.NUMBER_DTYPE)
+            rewards           = torch.from_numpy(np.stack([exp.reward   for exp in experiences])).to(SoftActorCritic.NUMBER_DTYPE)
+            dones             = torch.from_numpy(np.stack([exp.done     for exp in experiences]))
+            next_observations = torch.from_numpy(np.stack([exp.next_obs for exp in experiences])).to(SoftActorCritic.NUMBER_DTYPE)
         return observations,actions,rewards,dones,next_observations
     
     def get_optimal_action(self, state):
@@ -691,7 +709,7 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
             except:
                 raise Exception("Error in reading observation within SAC get_optimal_action; \
                                 'state' needs to be one of torch.tensor or np.ndarray.")
-        action = self.policy(obs=state, deterministic=True)
+        action = self.policy(obs=state.to(self.device), deterministic=True)
         return action
     
     def save(self, task_name: str, save_dir : str = None):
