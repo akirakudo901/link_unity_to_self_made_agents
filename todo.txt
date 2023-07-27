@@ -1,0 +1,1 @@
+1) Check why SAC execution is so slow with my code - find ways to optimize speed (e.g. replace the for loops with indices)

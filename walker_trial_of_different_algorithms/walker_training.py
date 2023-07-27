@@ -7,8 +7,8 @@ from mlagents_envs.registry import default_registry
 import numpy as np
 import torch
 
-import ddqn
-from ddqn import DDQN
+from walker_trial_of_different_algorithms import ddqn
+from walker_trial_of_different_algorithms.ddqn import DDQN
 from trainers.unityenv_base_trainer import OffPolicyBaseTrainer
 
 SAVE_AFTER_TRAINING = True
@@ -43,13 +43,13 @@ TASK_NAME = "DDQN" + "_Walker"
 ACTION_DISCRETIZED_NUMBER = ddqn.ACTION_DISCRETIZED_NUMBER
 
 #TODO Is there a way for me to move DISCRETIZED_NUM to ddqn? 
-def fixed_epsilon(discrete_actions : torch.tensor, epsilon : float, env : BaseEnv):
+def fixed_epsilon(discrete_actions : torch.tensor, env : BaseEnv):
     discrete_actions = discrete_actions.detach().reshape(
         discrete_actions.shape[0],
         env.behavior_specs[behavior_name].action_spec.continuous_size,
         ACTION_DISCRETIZED_NUMBER
     )
-    discrete_actions += epsilon * (np.random.randn(*discrete_actions.shape)).astype(np.float32)
+    discrete_actions += EPSILON * (np.random.randn(*discrete_actions.shape)).astype(np.float32)
     
     discrete_best_actions = torch.argmax(discrete_actions, dim=2, keepdim=False)
     continuous_actions = DDQN.convert_discrete_action_to_continuous(discrete_best_actions).numpy()
@@ -60,7 +60,6 @@ l_a = trainer.train(
     num_new_experience=NUM_NEW_EXP, 
     max_buffer_size=BUFFER_SIZE,
     exploration_function=fixed_epsilon,
-    epsilon=EPSILON,
     save_after_training=SAVE_AFTER_TRAINING,
     task_name=TASK_NAME
     )

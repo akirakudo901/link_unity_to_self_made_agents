@@ -477,11 +477,11 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
       
     def update(self, experiences : Buffer):
         # "experiences" is a list of experiences: (obs, action, reward, done, next_obs)
-        POLICY_EVAL_NUM_EPOCHS = 1
+        POLICY_EVAL_NUM_EPOCHS = 500
         POL_EVAL_BATCH_SIZE = 1028
         POL_EVAL_FRESH_ACTION_SAMPLE_SIZE = 1
 
-        POLICY_IMP_NUM_EPOCHS = 1
+        POLICY_IMP_NUM_EPOCHS = 500
         POL_IMP_BATCH_SIZE = 1028
         POL_IMP_FRESH_ACTION_SAMPLE_SIZE = 1
         random.shuffle(experiences)

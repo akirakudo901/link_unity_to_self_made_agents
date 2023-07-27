@@ -75,7 +75,6 @@ class OnPolicyBaseTrainer:
     def generate_experience(
         self,
         exploration_function,
-        epsilon : float,
         behavior_name : BehaviorName=None
         ) -> Tuple[Buffer, List[Trajectory], List[float]]:
         """
@@ -85,11 +84,9 @@ class OnPolicyBaseTrainer:
         Returns the experience of agents in the last step, and trajectories & cumulative rewards
         for agents who reached a terminal step.
         The experience involves some exploration (vs. exploitation) which behavior 
-        is determined by exploration_function and epsilon.
-        :param exploration_function: A function which together with epsilon, controls 
-        how exploration is handled during collection of experiences.
-        :param float epsilon: Value epsilon which specifies exploration together with
-        exploration_funcction.
+        is determined by exploration_function.
+        :param exploration_function: A function which controls how exploration is handled 
+        during collection of experiences.
         :param BehaviorName behavior_name: The behavior_name of the agent for which we 
         generate the experience.
         :returns Buffer experiences: The experiences of every agent that took action in
@@ -185,7 +182,6 @@ class OnPolicyBaseTrainer:
             
             best_actions = exploration_function(
                 self.learning_algorithm(decision_steps.obs[0]), 
-                epsilon,
                 self.env
             )
             
@@ -239,21 +235,17 @@ class OffPolicyBaseTrainer(OnPolicyBaseTrainer):
             self, 
             buffer_size : int,
             exploration_function,
-            epsilon : float,
             behavior_name : BehaviorName
         ) -> Tuple[Buffer, float]:
         """
         Generates and returns a buffer containing "buffer_size" random experiences 
         sampled from running the policy in the environment.
         The experience involves some exploration (vs. exploitation) which behavior 
-        is determined by epsilon. 
-        TODO! (shall I include some terms determining how epsilon is modified or handled?)
+        is determined by exploration_function.
 
         :param int buffer_size: The size of the buffer to be returned.
-        :param exploration_function: A function which, together with epsilon, controls how 
-        exploration is handled during collection of experience.
-        :param float epsilon: Value epsilon which specifies exploration together with
-        exploration_funcction.
+        :param exploration_function: A function which controls how exploration is handled 
+        during collection of experience.
         :param BehaviorName behavior_name: The behavior_name of the agent for which we 
         generate the experience.
         :returns Buffer buffer: The buffer containing buffer_size experiences.
@@ -268,7 +260,6 @@ class OffPolicyBaseTrainer(OnPolicyBaseTrainer):
         while len(buffer) < buffer_size:
             _, new_trajectories, new_cumulative_rewards = self.generate_experience(
                 exploration_function=exploration_function,
-                epsilon=epsilon,
                 behavior_name=behavior_name
             )
             
@@ -284,8 +275,8 @@ class OffPolicyBaseTrainer(OnPolicyBaseTrainer):
             num_training_steps : int,
             num_new_experience : int,
             max_buffer_size : int,
+            num_initial_experiences : int,
             exploration_function,
-            epsilon : float,
             save_after_training : bool,
             task_name : str
         ):
@@ -297,9 +288,10 @@ class OffPolicyBaseTrainer(OnPolicyBaseTrainer):
         :param int num_new_experience: The number of new experience we collect minimum before
         every update for our algorithm.
         :param int max_buffer_size: The maximum number of experience to be kept in the buffer.
-        :param exploration_function: A function which together with epsilon, controls 
-        how exploration is handled during collection of experiences.
-        :param float epsilon: The value of epsilon to control exploration vs. exploitation.
+        :param int num_initial_experiences: The number of experiences to be collected in the 
+        buffer first before doing any learning.
+        :param exploration_function: A function which controls how exploration is handled 
+        during collection of experiences.
         :param bool save_after_training: Whether to save the policy after training.
         :param str task_name: The name of the task to log when saving after training.
         """
@@ -310,13 +302,23 @@ class OffPolicyBaseTrainer(OnPolicyBaseTrainer):
             cumulative_rewards: List[float] = []
             experiences : Buffer = []
 
+            # first populate the buffer with num_initial_experiences experiences
+            init_exp, _ = self.generate_batch_of_experiences(
+                buffer_size=num_initial_experiences,
+                exploration_function=exploration_function,
+                behavior_name=self.behavior_name
+            )
+            experiences.extend(init_exp)
+            random.shuffle(experiences)
+            if len(experiences) > max_buffer_size:
+                experiences = experiences[:max_buffer_size]
+                
+            # then go into the training loop
             for _ in tqdm(range(num_training_steps)):
-            # for _ in range(num_training_steps):
                 
                 new_exp, _ = self.generate_batch_of_experiences(
                     buffer_size=num_new_experience,
                     exploration_function=exploration_function,
-                    epsilon=epsilon,
                     behavior_name=self.behavior_name
                 )
                 
@@ -329,7 +331,6 @@ class OffPolicyBaseTrainer(OnPolicyBaseTrainer):
                 _, reward = self.generate_batch_of_experiences(
                     buffer_size=100,
                     exploration_function=exploration_function,
-                    epsilon=0,
                     behavior_name=self.behavior_name
                 )
                 cumulative_rewards.append(reward)
@@ -357,13 +358,11 @@ class OffPolicyBaseTrainer(OnPolicyBaseTrainer):
             num_new_experience : int,
             max_buffer_size : int,
             exploration_function,
-            epsilon : float,
             save_after_training : bool,
             task_name : str
             ):
             self.generate_batch_of_experiences(
                     buffer_size=100,
                     exploration_function=exploration_function,
-                    epsilon=0,
                     behavior_name=self.behavior_name
                 )

@@ -36,7 +36,7 @@ learning_algorithm = SoftActorCritic(
     q_net_learning_rate=3e-4, 
     policy_learning_rate=1e-3, 
     discount=0.99, 
-    temperature=0.9,
+    temperature=1,
     observation_size=env.behavior_specs[behavior_name].observation_specs[0].shape[0],
     action_size=env.behavior_specs[behavior_name].action_spec.continuous_size, 
     update_qnet_every_N_gradient_steps=1000,
@@ -47,18 +47,18 @@ learning_algorithm = SoftActorCritic(
 trainer = OffPolicyBaseTrainer(env, behavior_name, learning_algorithm)
 
 # The number of training steps that will be performed
-NUM_TRAINING_STEPS = 50
+NUM_TRAINING_STEPS = 4
+# The number of experiences to be initlally collected before doing any training
+NUM_INIT_EXP = 1000
 # The number of experiences to collect per training step
 NUM_NEW_EXP = 500
 # The maximum size of the Buffer
-BUFFER_SIZE = 10**6
-
-EPSILON = 0.0
+BUFFER_SIZE = 10**4
 
 TASK_NAME = "SAC" + "_Walker"
 
 #TODO Is there a way for me to move DISCRETIZED_NUM to ddqn? 
-def no_exploration(actions : torch.tensor, epsilon : float, env : BaseEnv):
+def no_exploration(actions : torch.tensor, env : BaseEnv):
     # since exploration is inherent in SAC, we don't need epsilon to do anything
     # we however need to convert torch.tensor back to numpy arrays.
     return actions.detach().to(cpu_device).numpy()
@@ -67,8 +67,8 @@ l_a = trainer.train(
     num_training_steps=NUM_TRAINING_STEPS, 
     num_new_experience=NUM_NEW_EXP, 
     max_buffer_size=BUFFER_SIZE,
+    num_initial_experiences=NUM_INIT_EXP,
     exploration_function=no_exploration,
-    epsilon=EPSILON,
     save_after_training=SAVE_AFTER_TRAINING,
     task_name=TASK_NAME
     )
