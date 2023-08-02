@@ -47,11 +47,11 @@ learning_algorithm = SoftActorCritic(
 trainer = OffPolicyBaseTrainer(env, behavior_name, learning_algorithm)
 
 # The number of training steps that will be performed
-NUM_TRAINING_STEPS = 4
+NUM_TRAINING_STEPS = 1000000
 # The number of experiences to be initlally collected before doing any training
 NUM_INIT_EXP = 1000
 # The number of experiences to collect per training step
-NUM_NEW_EXP = 500
+NUM_NEW_EXP = 1
 # The maximum size of the Buffer
 BUFFER_SIZE = 10**4
 

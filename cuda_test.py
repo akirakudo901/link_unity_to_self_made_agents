@@ -29,7 +29,7 @@ def test(device):
     testNet = CudaTestNet().to(device)
     adam = optim.Adam(testNet.parameters(), lr=1e-3)
 
-    for i in range(5):
+    for i in range(2):
         print("Epoch ", i+1, "!")
         obs = torch.rand((1028, 212)).to(device)
         actions = testNet(obs)

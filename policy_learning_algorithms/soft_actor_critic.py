@@ -201,6 +201,7 @@ will just use open sourced implementations from there.
 from datetime import datetime
 import os
 import random
+from typing import Tuple
 
 import numpy as np
 
@@ -287,7 +288,7 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
          action values.
         """
 
-        def __init__(self, observation_size : int, action_size : int):
+        def __init__(self, observation_size : int, action_size : int, action_ranges : Tuple[Tuple[float]]):
             """
             Implements the neural network which maps observations to two vectors
             determining the corresponding distribution for the policy:
@@ -303,8 +304,13 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
 
             :param int observation_size: The size of the observation input vector.
             :param int action_size: The size of the action vectors.
+            :param Tuple[Tuple[int]] action_ranges: The high and low ranges of possible
+            values in the action space, as ith value being (low, high).
             """
             super(SoftActorCritic.Policy, self).__init__()
+            self.action_avgs       = torch.tensor([(range[1] + range[0]) / 2 for range in action_ranges]).to(SoftActorCritic.NUMBER_DTYPE)
+            self.action_multiplier = torch.tensor([(range[1] - range[0]) / 2 for range in action_ranges]).to(SoftActorCritic.NUMBER_DTYPE)
+
             fc_out = 256
             self.fc1 = nn.Linear(observation_size, fc_out)
             self.fc2 = nn.Linear(fc_out, fc_out)
@@ -344,16 +350,20 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
 
             if deterministic is True:
             :return torch.tensor myus: Actions obtained as means of the gaussian distributions which
-            are used as estimates of the policy at the corresponding states.
+            are used as estimates of the policy at the corresponding states. The result is squashed 
+            and adjusted to match the action_ranges values.
 
             if deterministic is False:
             :return torch.tensor squashed: The actions sampled from the policy and squashed between
             -1 and 1 using the tanh (as done with the original paper to limit possible action range)
+            before being adjusted to match the action_ranges values.
             :return torch.tensor log_probs: The log probability for corresponding actions in squashed.
             """
             
             # we squash action values to be between -1 and 1 using tanh
-            squashing_function = torch.tanh
+            def squashing_function(actions : torch.tensor):
+                squashed_neg_one_to_one = torch.tanh(actions)
+                return squashed_neg_one_to_one * self.action_multiplier + self.action_avgs
 
             # we obtain the mean myu and sd sigma of the gaussian distribution
             stack_out = self.linear_relu_stack(obs)
@@ -429,6 +439,7 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
                  temperature : float,
                  observation_size : int,
                  action_size : int,
+                 action_ranges : Tuple[Tuple[float]],
                  update_qnet_every_N_gradient_steps : int = 1000,
                  optimizer : optim.Optimizer = optim.Adam, 
                  device = None
@@ -463,7 +474,9 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
         self._update_target_networks()
         
         # initialize policy 
-        self.policy = SoftActorCritic.Policy(observation_size=observation_size, action_size=action_size).to(self.device)
+        self.policy = SoftActorCritic.Policy(
+            observation_size=observation_size, action_size=action_size, action_ranges=action_ranges
+            ).to(self.device)
         self.optim_policy = optimizer(self.policy.parameters(), lr=policy_learning_rate)
     
     def __call__(self, state):

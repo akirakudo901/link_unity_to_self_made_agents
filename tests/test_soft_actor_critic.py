@@ -63,7 +63,7 @@ class TestSoftActorCritic_Policy(unittest.TestCase):
         self.assertTrue(torch.equal(expected1, actual1))
 
     def test_forward(self):
-        example_policy = SoftActorCritic.Policy(observation_size=3, action_size=7)
+        example_policy = SoftActorCritic.Policy(observation_size=3, action_size=7, action_ranges=tuple(((-1., 1.),)*7))
         obs1 = torch.tensor([[0.0,1.0,2.0], [3.0,4.0,5.0]]) #[batch=2, elem=3]
         squashed, log_probs = example_policy(obs=obs1, num_samples=5, deterministic=False)
         # print("squashed: ", squashed, "squashed.shape: ", squashed.shape)
@@ -82,7 +82,8 @@ class TestSoftActorCritic_Policy(unittest.TestCase):
         testSAC = SoftActorCritic(
             q_net_learning_rate=1e-3, policy_learning_rate=1e-3, discount=DISCOUNT, 
             temperature=TEMPERATURE, observation_size=OBSERVATION_SIZE, action_size=ACTION_SIZE, 
-            device="cpu")
+            device="cpu", action_ranges=((-1., 1.), (-2., 3.), (0., 1.), (-10., 10.))
+            )
 
         qnet1 = SoftActorCritic.QNet(observation_size=OBSERVATION_SIZE, action_size=ACTION_SIZE)
         qnet2 = SoftActorCritic.QNet(observation_size=OBSERVATION_SIZE, action_size=ACTION_SIZE)
@@ -151,7 +152,8 @@ class TestSoftActorCritic_Policy(unittest.TestCase):
         testSAC = SoftActorCritic(
             q_net_learning_rate=1e-3, policy_learning_rate=1e-3, discount=DISCOUNT, 
             temperature=TEMPERATURE, observation_size=OBSERVATION_SIZE, action_size=ACTION_SIZE,
-            device="cpu")
+            device="cpu", action_ranges=((-1., 1.), (-2., 3.), (0., 1.), (-10., 10.))
+            )
 
         qnet1 = SoftActorCritic.QNet(observation_size=OBSERVATION_SIZE, action_size=ACTION_SIZE)
         qnet2 = SoftActorCritic.QNet(observation_size=OBSERVATION_SIZE, action_size=ACTION_SIZE)
@@ -199,7 +201,8 @@ class TestSoftActorCritic_Policy(unittest.TestCase):
         testSAC = SoftActorCritic(
             q_net_learning_rate=1e-3, policy_learning_rate=1e-3, discount=DISCOUNT, 
             temperature=TEMPERATURE, observation_size=OBSERVATION_SIZE, action_size=ACTION_SIZE,
-            device="cpu")
+            device="cpu", action_ranges=((-1., 1.), (-2., 3.), (0., 1.), (-10., 10.))
+            )
 
         # assuming a batch of two experiences
         batch_obs = np.array([[7.0, 8.0, 9.0], [10.0, 11.0, 12.0]]) #observation_size is 3

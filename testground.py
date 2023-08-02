@@ -60,27 +60,39 @@ from trainers.unityenv_base_trainer import Buffer, Experience
 # newSAC = SoftActorCritic(q_net_learning_rate=1e-2, policy_learning_rate=1e-2, discount=0.1, temperature=0.23, observation_size=3, action_size=4)
 # newSAC.load(loaded_sac_name="trained_algorithms/SAC/test_2023_07_25_10_03")
 
-from timeit import default_timer as timer
+# from timeit import default_timer as timer
 
-obs_t = torch.tensor([[0., 1., 2.], [3., 4., 5.]]*1024)
-print("obs_t.shape: ", obs_t.shape)
-act_t = torch.tensor([[[10.,11.,12.], [13.,14.,15.], [16.,17.,18.], [19., 20., 21.]], [[30.,31.,32.], [33.,34.,35.], [36.,37.,38.], [39.,40.,41.]]]*1024)
-print("act_t.shape: ", act_t.shape)
-# using a for loop and split
-start_for = timer()
-for_split_t = torch.stack([
-    torch.stack((obs_t, torch.squeeze(single_act_t, dim=1))) 
-    for single_act_t in torch.split(act_t, 1, dim=1) 
-    ])
-end_for = timer()
-# using index and split
-start_index = timer()
-index_split_t = torch.stack([
-    torch.stack((obs_t, torch.squeeze(act_t[:, i, :], dim=1)))
-    for i in range(act_t.shape[1])  
-    ])
-end_index = timer()
+# obs_t = torch.tensor([[0., 1., 2.], [3., 4., 5.]]*1024)
+# print("obs_t.shape: ", obs_t.shape)
+# act_t = torch.tensor([[[10.,11.,12.], [13.,14.,15.], [16.,17.,18.], [19., 20., 21.]], [[30.,31.,32.], [33.,34.,35.], [36.,37.,38.], [39.,40.,41.]]]*1024)
+# print("act_t.shape: ", act_t.shape)
+# # using a for loop and split
+# start_for = timer()
+# for_split_t = torch.stack([
+#     torch.stack((obs_t, torch.squeeze(single_act_t, dim=1))) 
+#     for single_act_t in torch.split(act_t, 1, dim=1) 
+#     ])
+# end_for = timer()
+# # using index and split
+# start_index = timer()
+# index_split_t = torch.stack([
+#     torch.stack((obs_t, torch.squeeze(act_t[:, i, :], dim=1)))
+#     for i in range(act_t.shape[1])  
+#     ])
+# end_index = timer()
 
-print(f"The tensors were {'' if torch.equal(for_split_t, index_split_t) else 'not '}equal.")
-print(f"Execution time for for  : {end_for - start_for}.")
-print(f"Execution time for index: {end_index - start_index}.")
+# print(f"The tensors were {'' if torch.equal(for_split_t, index_split_t) else 'not '}equal.")
+# print(f"Execution time for for  : {end_for - start_for}.")
+# print(f"Execution time for index: {end_index - start_index}.")
+
+# action_ranges = ((0., 1.), (-15., 3.), (-1., 2.))
+# avgs   = torch.tensor([(range[1] + range[0]) / 2 for range in action_ranges])
+# ranges = torch.tensor([(range[1] - range[0]) / 2 for range in action_ranges])
+# print("avgs: ", avgs, "ranges: ", ranges)
+
+# squashed = torch.tensor([0.3, 0.6, -0.8])
+# result = squashed * ranges + avgs
+
+# print("result: ", result)
+
+print(tuple(((0., 1.),)*7))
