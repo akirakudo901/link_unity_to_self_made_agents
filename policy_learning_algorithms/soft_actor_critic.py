@@ -363,7 +363,8 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
             # we squash action values to be between -1 and 1 using tanh
             def squashing_function(actions : torch.tensor):
                 squashed_neg_one_to_one = torch.tanh(actions)
-                return squashed_neg_one_to_one * self.action_multiplier + self.action_avgs
+                t_device = squashed_neg_one_to_one.device
+                return squashed_neg_one_to_one * self.action_multiplier.to(t_device) + self.action_avgs.to(t_device)
 
             # we obtain the mean myu and sd sigma of the gaussian distribution
             stack_out = self.linear_relu_stack(obs)
@@ -461,6 +462,7 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
             print('Using:', self.device, ' as specified.')
 
         self.qnet_update_counter = 1
+        self.TEMP_policy_counter = 1 #TODO
 
         # two q-functions are used to approximate values during training
         self.qnet1 = SoftActorCritic.QNet(observation_size=observation_size, action_size=action_size).to(self.device)
@@ -490,11 +492,13 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
       
     def update(self, experiences : Buffer):
         # "experiences" is a list of experiences: (obs, action, reward, done, next_obs)
-        POLICY_EVAL_NUM_EPOCHS = 500
+        NUM_STEPS = 1
+
+        POLICY_EVAL_NUM_EPOCHS = 1
         POL_EVAL_BATCH_SIZE = 1028
         POL_EVAL_FRESH_ACTION_SAMPLE_SIZE = 1
 
-        POLICY_IMP_NUM_EPOCHS = 500
+        POLICY_IMP_NUM_EPOCHS = 1
         POL_IMP_BATCH_SIZE = 1028
         POL_IMP_FRESH_ACTION_SAMPLE_SIZE = 1
         random.shuffle(experiences)
@@ -515,35 +519,37 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
         # print("fresh_log_probs.shape: ", fresh_log_probs.shape, "\n")
 
         # 1 - policy evaluation
+        policy_evaluation_gradient_step_count = 0
+
         for _ in range(POLICY_EVAL_NUM_EPOCHS):
             for i in range(len(experiences) // POL_EVAL_BATCH_SIZE + 1):
                 batch_start = i*POL_EVAL_BATCH_SIZE
                 batch_end = min((i+1)*POL_EVAL_BATCH_SIZE, len(experiences))
 
                 batch_obs = observations[batch_start : batch_end].detach()
-                # print(batch_obs, "\n")
+                # print("batch_obs[:10]: ", batch_obs[:10], "\n")
                 # print("batch_obs.shape: ", batch_obs.shape, "\n")
                 batch_actions = actions[batch_start : batch_end].detach()
-                # print(batch_actions, "\n")
+                # print("batch_actions[:10]: ", batch_actions[:10], "\n")
                 # print("batch_actions.shape: ", batch_actions.shape, "\n")
                 batch_rewards = rewards[batch_start : batch_end].detach()
-                # print(batch_rewards, "\n")
+                # print("batch_rewards[:10]: ", batch_rewards[:10], "\n")
                 # print("batch_rewards.shape: ", batch_rewards.shape, "\n")
                 batch_dones = dones[batch_start : batch_end].detach()
-                # print(batch_dones, "\n")
+                # print("batch_dones[:10]: ", batch_dones[:10], "\n")
                 # print("batch_dones.shape: ", batch_dones.shape, "\n")
                 batch_nextobs = next_observations[batch_start : batch_end].detach()
-                # print(batch_nextobs, "\n")
+                # print("batch_nextobs[:10]: ", batchbatch_nextobs_dones[:10], "\n")
                 # print("batch_nextobs.shape: ", batch_nextobs.shape, "\n")
 
                 # batch_action_samples' shape is [batch_size, POL_EVAL_FRESH_ACTION_SAMPLE_SIZE, action_size]
                 batch_action_samples = fresh_action_samples[batch_start : batch_end].detach()
-                # print("batch_action_samples: ", batch_action_samples, "\n")
+                # print("batch_action_samples[:10]: ", batch_action_samples[:10], "\n")
                 # print("batch_action_samples.shape: ", batch_action_samples.shape, "\n")
                 
                 # batch_log_probs' shape is [batch_size, POL_EVAL_FRESH_ACTION_SAMPLE_SIZE]
                 batch_log_probs = fresh_log_probs[batch_start : batch_end].detach()
-                # print("batch_log_probs: ", batch_log_probs, "\n")
+                # print("batch_log_probs[:10]: ", batch_log_probs[:10], "\n")
                 # print("batch_log_probs.shape: ", batch_log_probs.shape, "\n")
                 
                 # first compute target value for all experiences (terminal ones are only the rewards)
@@ -559,6 +565,7 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
                 criterion = nn.MSELoss()
                 loss1 = criterion(predictions1, targets)
                 loss2 = criterion(predictions2, targets)
+                # print("loss1: ", loss1, "loss1.shape: ", loss1.shape)
                 # backpropagate that loss to update q_nets
                 self.optim_qnet1.zero_grad()
                 loss1.backward(retain_graph=True)
@@ -568,10 +575,21 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
                 loss2.backward()
                 self.optim_qnet2.step()
                 
-                # finally increment the update counter and increment
-                # update the target network every N gradient steps
+                # increment the update counter and update target networks every N gradient steps
+                self.qnet_update_counter += 1
                 if self.qnet_update_counter % self.update_qnet_every_N_gradient_steps == 0:
                     self._update_target_networks()
+                    print("Updated qnet!")
+                    print("targets[:10]: ", targets[:10], "targets.shape: ", targets.shape, "\n")
+                    print("predictions1[:10]: ", predictions1[:10], "predictions1.shape: ", predictions1.shape)
+                    print("loss1: ", loss1, "loss1.shape: ", loss1.shape)
+                
+                # finally break out of loop if the number of gradient steps exceeds NUM_STEPS
+                policy_evaluation_gradient_step_count += 1
+                if policy_evaluation_gradient_step_count >= NUM_STEPS: break
+            # also break out of outer loop
+            if policy_evaluation_gradient_step_count >= NUM_STEPS: break
+
                 
         # 2 - policy improvement
         # at this point, the q-network weights are adjusted to reflect the q-value of
@@ -582,6 +600,8 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
         # TODO COULD WE USE ACTIONS SAMPLED BEFORE WHICH WERE USED FOR Q-NETWORK UPDATE? NOT SURE
         fresh_action_samples2, fresh_log_probs2 = self.policy(observations, POL_IMP_FRESH_ACTION_SAMPLE_SIZE, deterministic=False)
         
+        policy_improvement_gradient_step_count = 0
+
         for _ in range(POLICY_IMP_NUM_EPOCHS):
             for i in range(len(experiences) // POL_IMP_BATCH_SIZE + 1):
                 batch_start = i*POL_IMP_BATCH_SIZE
@@ -600,21 +620,36 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
                 # print("batch_log_probs: ", batch_log_probs, "\n")
                 # print("batch_log_probs.size: ", batch_log_probs.size, "\n")
                 
-                # Then, we compute the loss function: which relates the exponentiated distribution of
-                # the q-value function with the current policy's distribution, through KL divergence
-                exponentiated_qval = self._compute_exponentiated_qval(batch_obs, batch_action_samples)
+                # Then, we compute the loss function: which is the difference between the expected log probs
+                # of actions in the buffer and the expected q-value for the same actions????             
+                target_qval = self._compute_exponentiated_qval(batch_obs, batch_action_samples)
+                log_target_qval = torch.log(target_qval)
                 policy_val = torch.mean(batch_log_probs, dim=1)
-                criterion = nn.KLDivLoss(reduction="batchmean")
-                loss = criterion(policy_val, exponentiated_qval)
+                criterion = nn.L1Loss()
+                loss = criterion(policy_val, log_target_qval)
                 
                 # then, we improve the policy by minimizing this loss 
                 self.optim_policy.zero_grad()
                 loss.backward()
                 self.optim_policy.step()
+
+                # TODO REMOVE
+                self.TEMP_policy_counter += 1 #TODO
+                if self.TEMP_policy_counter % self.update_qnet_every_N_gradient_steps == 0: 
+                    print("See policy!")
+                    print("log_target_qval[:10]: ", log_target_qval[:10], "log_target_qval.shape: ", log_target_qval.shape, "\n")
+                    print("policy_val[:10]: ", policy_val[:10], "policy_val.shape: ", policy_val.shape)
+                    print("loss: ", loss, "loss.shape: ", loss.shape)
+
+                # finally increment the improvement gradient step count
+                policy_improvement_gradient_step_count += 1
+                if policy_improvement_gradient_step_count >= NUM_STEPS: break
+            # also break out of outer loop
+            if policy_improvement_gradient_step_count >= NUM_STEPS: break 
                 
     def _compute_exponentiated_qval(self, batch_obs, batch_action_samples):
         # predicted q_val for each qnet of the shape [batch, num_samples]
-        qnet1_exp_val = torch.cat([
+        qnet1_val = torch.cat([
                                     self.qnet1(batch_obs, torch.squeeze(batch_action_samples[:, i, :], dim=1))
                                     for i in range(batch_action_samples.shape[1])  
                                     # self.qnet1(batch_obs, torch.squeeze(batch_single_sample, dim=1)) 
@@ -622,7 +657,7 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
                                     ],
                                     dim=1
                                 )
-        qnet2_exp_val = torch.cat([
+        qnet2_val = torch.cat([
                                     self.qnet2(batch_obs, torch.squeeze(batch_action_samples[:, i, :], dim=1))
                                     for i in range(batch_action_samples.shape[1])  
                                     # self.qnet2(batch_obs, torch.squeeze(batch_single_sample, dim=1)) 
@@ -630,6 +665,8 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
                                     ],
                                     dim=1
                                 )
+        # print("qnet1_val: ", qnet1_val, "\n", "qnet1_val.shape: ", qnet1_val.shape, "\n")
+        qnet1_exp_val, qnet2_exp_val = torch.exp(qnet1_val), torch.exp(qnet2_val)
         # print("qnet1_exp_val: ", qnet1_exp_val, "\n", "qnet1_exp_val.shape: ", qnet1_exp_val.shape, "\n")
         # the minimum of those predictions of the shape [batch, num_samples]
         exp_qval_minimum = torch.minimum(qnet1_exp_val, qnet2_exp_val)
@@ -660,12 +697,16 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
                                 dim=1
                                 )
         # print("qnet2_tar_preds: ", qnet2_tar_preds, "\n")
+        # print("qnet2_tar_preds.shape: ", qnet2_tar_preds.shape, "\n")
         minimum = torch.minimum(qnet1_tar_preds, qnet2_tar_preds)
         # print("minimum: ", minimum, "\n")
+        # print("minimum.shape: ", minimum.shape, "\n")
         mean_of_minimum = torch.mean(minimum, dim=1, dtype=SoftActorCritic.NUMBER_DTYPE)
         # print("mean_of_minimum: ", mean_of_minimum, "\n")
+        # print("mean_of_minimum.shape: ", mean_of_minimum.shape, "\n")
         mean_of_log = torch.mean(batch_log_probs, dim=1)
         # print("mean_of_log: ", mean_of_log, "\n")
+        # print("mean_of_log.shape: ", mean_of_log.shape, "\n")
         targets = (
                     batch_rewards + 
                     self.d_r *
@@ -677,6 +718,7 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
                     )
                 )
         # print("targets: ", targets, "\n")
+        # print("targets.shape: ", targets.shape, "\n")
 
         return targets
     

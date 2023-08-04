@@ -95,4 +95,30 @@ from trainers.unityenv_base_trainer import Buffer, Experience
 
 # print("result: ", result)
 
-print(tuple(((0., 1.),)*7))
+# print(tuple(((0., 1.),)*7))
+
+# import gymnasium as gym
+
+# env = gym.make("CartPole-v1")
+# print(env.spec.id)
+
+# print(t1 := torch.squeeze(
+#                 self.learning_algorithm(
+#                     torch.tensor([
+#                         [0.0, -0.5, 0.3, 0.8],
+#                         ])
+#                 ).cpu().detach()
+#                 ).numpy())
+# print(t1.shape)
+
+from torch import nn
+target = torch.tensor([-0.5708, ])#, -0.5431, -0.5547, -0.5632, -0.5331, -0.5343, -0.5604, -0.5390, -0.5585, -0.5543])
+# target = torch.tensor([-0.4457, -0.4419, -0.4457, -0.4404, -0.4406])
+# target = torch.tensor([-194.0212, -207.6462, -197.5734, -200.3207, -214.7844])
+
+pred = torch.tensor([-2.0165, ])#,  2.0930, -2.6004, -0.8696,  0.9794,  2.6524,  1.0425, -1.2586, 2.6342, -1.1144])
+
+criterion = nn.KLDivLoss(reduction="batchmean")
+loss = criterion(pred, target)
+print(loss)
+                
