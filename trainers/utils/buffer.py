@@ -6,6 +6,7 @@ NdArrayBuffer should be faster than ListBuffer and thus should be used.
 """
 
 from abc import ABC, abstractmethod
+import random
 
 import numpy as np
 
@@ -46,6 +47,13 @@ class Buffer(ABC):
         Return the observation, action, reward, done and next_observation components
         in np.ndarray.
         """
+    
+    @abstractmethod
+    def shuffle(self):
+        """
+        Shuffle the experiences held in this buffer such that accessing the first
+        N experiences becomes random sampling.
+        """
 
 class ListBuffer(Buffer):
     """
@@ -76,6 +84,7 @@ class ListBuffer(Buffer):
     def extend_buffer(self, buffer):
         """
         Extend the buffer using the content from another buffer.
+        Result will depend on the implementation of _adjust_buffer_when_full.
         """
         self._list.extend(buffer._list)
         self._adjust_buffer_when_full()
@@ -85,7 +94,8 @@ class ListBuffer(Buffer):
         Adjusts the buffer content when full.
         Right now, we remove the data at the beginning of list.
         """
-        while self.size() > self.max_size: self._list.pop(0)
+        if self.size() > self.max_size:
+            self._list = self._list[-self.max_size:]
 
     def size(self):
         return len(self._list)
@@ -103,6 +113,9 @@ class ListBuffer(Buffer):
                                                            exp.done,
                                                            exp.next_obs)
         return obs, act, rew, don, next_obs
+    
+    def shuffle(self):
+        random.shuffle(self._list)
 
 class NdArrayBuffer(Buffer):
     """
@@ -152,17 +165,36 @@ class NdArrayBuffer(Buffer):
         self.next_obs[self.ptr] = next_obs
         # update size and ptr
         self.ptr = (self.ptr + 1) % self.ptr
-        self.size += 1
-        # if size goes beyond the maximum, we can wrap around at the beginning
-        if self.size > self.max_size:
-            self.size = self.max_size
+        self.size = self.size + 1 if self.size < self.max_size else self.size
     
     def extend_buffer(self, buffer):
         """
         Extend the buffer using the content from another buffer.
+        The result should be just like we appended to self all experiences 
+        in buffer using append_experience (that is, we wrap around when we
+        fill the entire buffer). 
         """
-        # self.list.extend(buffer.list)
-        # self._adjust_buffer_when_full()
+        """
+        First, reach the state when the number of experiences we fill is smaller or equal to self.max_size
+        To do so, we:
+        0) check if buffer.size() + self.size() is greater than self.max_size - if so, wrap around occurs, and we go to 1)
+           otherwise, wrap around does not occur, so we simply COPY_CONTENT
+        1) calculate SKIPPING = buffer.size() - self.max_size which should be the number of addition 
+           that won't matter since wrapping around will override them
+        3) we determine the new pointer position after SKIPPING additions, which takes us to position
+           (self.size() + SKIPPING) % 100
+        4) from this position, we add 100 as we wrap around, using COPY_CONTENT
+
+        b1: 100 max, 30 filled
+        b2: 400 max, 350 filled
+        -> 1st, fill 70 using 350 -> 350 - 70 = 280 remaining
+        -> then, fill 100 twice -> 280 - 200 = 80 remaining
+        -> finally, fill by 80.
+        This is really equivalent to:
+        1) fill 250, but hypothetically -> new position will be (30 + 250) % 100 = 80
+        2) then fill 20 with next 20, and finally wrap around and fill 80 for the last 80 
+        """
+        buffer.size()
 
     def size(self):
         return self.size

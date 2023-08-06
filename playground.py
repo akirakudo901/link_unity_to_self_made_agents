@@ -80,11 +80,42 @@ import torch
 # a = A()
 # a[1:9:3]
 
-from typing import NamedTuple
+# from typing import NamedTuple
 
-class B(NamedTuple):
-    attA : int
-    attB : str
+# class B(NamedTuple):
+#     attA : int
+#     attB : str
 
-b = B(attA=1, attB="attB")
-print(list(*b))
+# b = B(attA=1, attB="attB")
+# print(list(*b))
+
+import numpy as np
+from timeit import default_timer as timer
+
+n1 = np.random.rand(1000, 1000)
+n2 = np.random.rand(1000, 800)
+n1_ = np.random.rand(1000, 1000)
+n2_ = np.random.rand(1000, 800)
+
+# print("initial n1, n2:", n1, "\n", n2 )
+
+start_index = timer()
+n1[:, :800] = n2[:,:]
+end_index = timer()
+
+# print("final n1, n2:", n1,"\n", n2 )
+
+print("index :", end_index - start_index)
+
+# print("initial n1_, n2_:", n1_, "\n", n2_)
+
+start_for = timer()
+for i in range(800):
+    n1_[:, i] = n2_[:, i]
+end_for = timer()
+
+# print("final n1_, n2_:", n1_, "\n", n2_)
+
+print("for :", end_for - start_for)
+
+

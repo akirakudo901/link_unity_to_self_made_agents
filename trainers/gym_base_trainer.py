@@ -189,69 +189,69 @@ class GymOffPolicyBaseTrainer:
         :param bool render_evaluation: Whether to render the environment when evaluating.
         """
         
-        # try:
-        experiences : Buffer = GymOffPolicyBaseTrainer.BUFFER_IMPLEMENTATION(max_size=max_buffer_size, 
-                                                                            obs_shape=(self.learning_algorithm.obs_size, ), 
-                                                                            act_shape=(self.learning_algorithm.act_size, ))
-        cumulative_rewards : List[float] = []
+        try:
+            experiences : Buffer = GymOffPolicyBaseTrainer.BUFFER_IMPLEMENTATION(max_size=max_buffer_size, 
+                                                                                obs_shape=(self.learning_algorithm.obs_size, ), 
+                                                                                act_shape=(self.learning_algorithm.act_size, ))
+            cumulative_rewards : List[float] = []
 
-        # first populate the buffer with num_initial_experiences experiences
-        print(f"Generating {num_initial_experiences} initial experiences...")
-        init_exp = self.generate_batch_of_experiences(
-            buffer_size=num_initial_experiences,
-            exploration_function=initial_exploration_function,
-        )
-        print("Generation successful!")
-        # TODO TOREMOVE
-
-        # print("Action generated at the very beginning!")
-        # obs = torch.unsqueeze(torch.from_numpy(init_exp[0].obs), dim=0).cuda()
-        # act = torch.tensor([[-0.1313,  0.0119, -0.3108,  0.0566],]).cuda()
-        # print("obs: ", obs, "obs.shape: ", obs.shape, "act: ", act, "act.shape: ", act.shape)
-        # pred = torch.squeeze(self.learning_algorithm.qnet1(obs=obs, actions=act), dim=1)
-        # print("pred: ", pred)
-        
-        # END TOREMOVE
-        
-        experiences.extend_buffer(init_exp)
-            
-        # then go into the training loop
-        for i in range(num_training_steps):
-            
-            new_exp = self.generate_batch_of_experiences(
-                buffer_size=num_new_experience,
-                exploration_function=training_exploration_function
+            # first populate the buffer with num_initial_experiences experiences
+            print(f"Generating {num_initial_experiences} initial experiences...")
+            init_exp = self.generate_batch_of_experiences(
+                buffer_size=num_initial_experiences,
+                exploration_function=initial_exploration_function,
             )
+            print("Generation successful!")
+            # TODO TOREMOVE
+
+            # print("Action generated at the very beginning!")
+            # obs = torch.unsqueeze(torch.from_numpy(init_exp[0].obs), dim=0).cuda()
+            # act = torch.tensor([[-0.1313,  0.0119, -0.3108,  0.0566],]).cuda()
+            # print("obs: ", obs, "obs.shape: ", obs.shape, "act: ", act, "act.shape: ", act.shape)
+            # pred = torch.squeeze(self.learning_algorithm.qnet1(obs=obs, actions=act), dim=1)
+            # print("pred: ", pred)
             
-            experiences.extend_buffer(new_exp)
-            self.learning_algorithm.update(experiences)
-
-            # evaluate sometimes
-            if (i + 1) % (evaluate_every_N_steps) == 0:
-                cumulative_reward = self.evaluate(1, render=render_evaluation)
-                cumulative_rewards.append(cumulative_reward)
-                print(f"Training loop {i+1}/{num_training_steps} successfully ended: reward={cumulative_reward}.\n")
+            # END TOREMOVE
             
-        if save_after_training: self.learning_algorithm.save(task_name)
-        print("Training ended successfully!")
-
-        # except KeyboardInterrupt:
-        #     print("\nTraining interrupted, continue to next cell to save to save the model.")
-        # finally:
-        #     print("Closing envs...")
-        #     self.env.close()
-        #     self.env_eval.close()
-        #     print("Successfully closed envs!")
-
-        #     # Show the training graph
-        #     try:
-        #         plt.plot(range(0, num_training_steps, evaluate_every_N_steps), cumulative_rewards)
-        #         plt.savefig(f"{task_name}_cumulative_reward_fig.png")
-        #         plt.show()
-        #     except ValueError:
-        #         print("\nPlot failed on interrupted training.")
+            experiences.extend_buffer(init_exp)
                 
-        #     return self.learning_algorithm
+            # then go into the training loop
+            for i in range(num_training_steps):
+                
+                new_exp = self.generate_batch_of_experiences(
+                    buffer_size=num_new_experience,
+                    exploration_function=training_exploration_function
+                )
+                
+                experiences.extend_buffer(new_exp)
+                self.learning_algorithm.update(experiences)
+
+                # evaluate sometimes
+                if (i + 1) % (evaluate_every_N_steps) == 0:
+                    cumulative_reward = self.evaluate(1, render=render_evaluation)
+                    cumulative_rewards.append(cumulative_reward)
+                    print(f"Training loop {i+1}/{num_training_steps} successfully ended: reward={cumulative_reward}.\n")
+                
+            if save_after_training: self.learning_algorithm.save(task_name)
+            print("Training ended successfully!")
+
+        except KeyboardInterrupt:
+            print("\nTraining interrupted, continue to next cell to save to save the model.")
+        finally:
+            print("Closing envs...")
+            self.env.close()
+            self.env_eval.close()
+            print("Successfully closed envs!")
+
+            # Show the training graph
+            try:
+                plt.plot(range(0, num_training_steps, evaluate_every_N_steps), cumulative_rewards)
+                plt.savefig(f"{task_name}_cumulative_reward_fig.png")
+                plt.show()
+            except ValueError:
+                print("\nPlot failed on interrupted training.")
+                
+            return self.learning_algorithm
     
     def evaluate(self, num_samples : int = 1, render : bool = True):
         """

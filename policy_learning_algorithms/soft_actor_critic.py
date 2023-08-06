@@ -200,10 +200,7 @@ will just use open sourced implementations from there.
 
 from datetime import datetime
 import os
-import random
 from typing import Tuple
-
-import numpy as np
 
 import torch
 import torch.nn as nn
@@ -211,7 +208,7 @@ import torch.optim as optim
 from torch.distributions.normal import Normal
 
 from policy_learning_algorithms.policy_learning_algorithm import OffPolicyLearningAlgorithm
-from trainers.gym_base_trainer import ListBuffer
+from trainers.gym_base_trainer import Buffer, ListBuffer, NdArrayBuffer
 
 class SoftActorCritic(OffPolicyLearningAlgorithm):
 
@@ -356,16 +353,29 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
             :return torch.tensor log_probs: The log probability for corresponding actions in squashed.
             """
             
-            # we squash action values to be between -1 and 1 using tanh
+            # we squash action values to be between a given bounary using tanh and adjustment
             def squashing_function(actions : torch.tensor):
+                # print("actions right before tanh: ", actions, "actions.shape: ", actions.shape)
                 squashed_neg_one_to_one = torch.tanh(actions)
+                # print("actions right after tanh: ", squashed_neg_one_to_one, "squashed_neg_one_to_one.shape: ", squashed_neg_one_to_one.shape)
                 t_device = squashed_neg_one_to_one.device
+                # print("action_multiplier: ", self.action_multiplier, "action_avgs: ", self.action_avgs)
                 return squashed_neg_one_to_one * self.action_multiplier.to(t_device) + self.action_avgs.to(t_device)
 
             # we obtain the mean myu and sd sigma of the gaussian distribution
             stack_out = self.linear_relu_stack(obs)
             myus = self.mean_layer(stack_out)
-            sigmas = torch.abs(self.sd_layer(stack_out))
+
+            #TODO EXPERIMENTAL
+            # sigmas = torch.abs(self.sd_layer(stack_out)) #TODO can we use abs here? Or is exp better?
+            # sigmas = torch.exp(self.sd_layer(stack_out)) #squash to enforce positive sigmas values
+
+            LOG_STD_MIN, LOG_STD_MAX = -5, 2
+            log_std = torch.tanh(self.sd_layer(stack_out)) # another way to do it: tanh and scaling
+            log_std = LOG_STD_MIN + 0.5 * (LOG_STD_MAX - LOG_STD_MIN) * (log_std + 1)
+            sigmas = torch.exp(log_std)
+            #END EXPERIMENTAL
+            
             # print("myus: ", myus, "myus.shape: ", myus.shape)
             # print("sigmas: ", sigmas, "sigmas.shape: ", sigmas.shape)
             
@@ -387,20 +397,20 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
             # print("pure_log_probabilities: ", pure_log_probabilities, "pure_log_probabilities.shape: ", pure_log_probabilities.shape)
             before_correction = torch.sum(pure_log_probabilities, dim=2)
             # print("before_correction: ", before_correction, "before_correction.shape: ", before_correction.shape)
-            log_probs = SoftActorCritic.Policy._correct_for_squash(
+            log_probs = self._correct_for_squash(
                 before_correction, actions
                 )
             
             return squashed, log_probs
         
-        def _correct_for_squash(before : torch.tensor, actions : torch.tensor):
+        def _correct_for_squash(self, before : torch.tensor, actions : torch.tensor):
             """
             Corrects for the log probabilities following squashing
             using tanh. 
 
             Given before is a log probability and the transformation is elementwise tanh,
             the adjustment is 
-                [before - Sum(1 - tanh^2(u_i))] 
+                [before - Sum( log(1 - tanh^2(u_i)) )] 
                 where u_i is the ith element in a single action.
                 This is since
                 1) Correction involves multiplying the original probability with the determinant
@@ -410,6 +420,9 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
                     (1 - tanh^2(x)). We divide by this factor here as after results from tanh 
                     correction of before.
                 3) Since we are dealing with log probabilities, multiplication turn to addition.
+
+            Furthermore, as we scale the action by different factors after squashing with tanh to adjust
+            to the actual action ranges, we multiply the whole result by self.action_multiplier before the sum.
 
             :param torch.tensor before: The log probabilities to be corrected.
             Will be of the form [batch_size, num_samples].
@@ -421,7 +434,8 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
             # compute the trace of the Jacobian of tanh squashing for each action
             # print("before: ", before, "before.shape: ", before.shape)
             # print("actions: ", actions, "actions.shape: ", actions.shape)
-            jacobian_trace = torch.sum((1 - torch.tanh(actions)**2), dim=2)
+            multiplier = self.action_multiplier.to(actions.device)
+            jacobian_trace = torch.sum((multiplier * torch.log(1 - torch.tanh(actions)**2) ), dim=2)
             # print("jacobian_trace: ", jacobian_trace, "jacobian_trace.shape: ", jacobian_trace.shape)
             # subtract it from before to yield after
             after = before - jacobian_trace
@@ -489,17 +503,21 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
         """
         return self.get_optimal_action(state)
       
-    def update(self, experiences : ListBuffer):
+    def update(self, experiences : Buffer):
         # "experiences" is a list of experiences: (obs, action, reward, done, next_obs)
-        NUM_STEPS = 1
+        NUM_EVAL_STEPS = 1
 
         POLICY_EVAL_NUM_EPOCHS = 1
         POL_EVAL_BATCH_SIZE = 1028
         POL_EVAL_FRESH_ACTION_SAMPLE_SIZE = 1
 
+        NUM_IMP_STEPS = 1
+
         POLICY_IMP_NUM_EPOCHS = 1
         POL_IMP_BATCH_SIZE = 1028
         POL_IMP_FRESH_ACTION_SAMPLE_SIZE = 1
+
+        experiences.shuffle()
         observations, actions, rewards, dones, next_observations = SoftActorCritic._unzip_experiences(experiences, device=self.device)
         # print("observations.shape: ", observations.shape)
         # print("actions.shape: ", actions.shape)
@@ -507,10 +525,10 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
         # print("dones.shape: ", dones.shape)
         # print("next_observations.shape: ", next_observations.shape)
         
-        # freshly sample new actions in the current policy for each observations
+        # freshly sample new actions in the current policy for each next observations
         # for now, we will sample FRESH_ACTION_SAMPLE_SIZE
         # TODO WHAT IS THE BEST WAY TO FRESHLY SAMPLE THOSE?
-        fresh_action_samples, fresh_log_probs = self.policy(observations, POL_EVAL_FRESH_ACTION_SAMPLE_SIZE, deterministic=False)
+        fresh_action_samples, fresh_log_probs = self.policy(next_observations, POL_EVAL_FRESH_ACTION_SAMPLE_SIZE, deterministic=False)
         # print("fresh_action_samples: ", fresh_action_samples, "\n")
         # print("fresh_action_samples.shape: ", fresh_action_samples.shape, "\n")
         # print("fresh_log_probs: ", fresh_log_probs, "\n")
@@ -524,29 +542,29 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
                 batch_start = i*POL_EVAL_BATCH_SIZE
                 batch_end = min((i+1)*POL_EVAL_BATCH_SIZE, experiences.size())
 
-                batch_obs = observations[batch_start : batch_end].detach()
+                batch_obs = observations[batch_start : batch_end]#.detach()
                 # print("batch_obs[:10]: ", batch_obs[:10], "\n")
                 # print("batch_obs.shape: ", batch_obs.shape, "\n")
-                batch_actions = actions[batch_start : batch_end].detach()
+                batch_actions = actions[batch_start : batch_end]#.detach()
                 # print("batch_actions[:10]: ", batch_actions[:10], "\n")
                 # print("batch_actions.shape: ", batch_actions.shape, "\n")
-                batch_rewards = rewards[batch_start : batch_end].detach()
+                batch_rewards = rewards[batch_start : batch_end]#.detach()
                 # print("batch_rewards[:10]: ", batch_rewards[:10], "\n")
                 # print("batch_rewards.shape: ", batch_rewards.shape, "\n")
-                batch_dones = dones[batch_start : batch_end].detach()
+                batch_dones = dones[batch_start : batch_end]#.detach()
                 # print("batch_dones[:10]: ", batch_dones[:10], "\n")
                 # print("batch_dones.shape: ", batch_dones.shape, "\n")
-                batch_nextobs = next_observations[batch_start : batch_end].detach()
+                batch_nextobs = next_observations[batch_start : batch_end]#.detach()
                 # print("batch_nextobs[:10]: ", batchbatch_nextobs_dones[:10], "\n")
                 # print("batch_nextobs.shape: ", batch_nextobs.shape, "\n")
 
                 # batch_action_samples' shape is [batch_size, POL_EVAL_FRESH_ACTION_SAMPLE_SIZE, action_size]
-                batch_action_samples = fresh_action_samples[batch_start : batch_end].detach()
+                batch_action_samples = fresh_action_samples[batch_start : batch_end]
                 # print("batch_action_samples[:10]: ", batch_action_samples[:10], "\n")
                 # print("batch_action_samples.shape: ", batch_action_samples.shape, "\n")
                 
                 # batch_log_probs' shape is [batch_size, POL_EVAL_FRESH_ACTION_SAMPLE_SIZE]
-                batch_log_probs = fresh_log_probs[batch_start : batch_end].detach()
+                batch_log_probs = fresh_log_probs[batch_start : batch_end]
                 # print("batch_log_probs[:10]: ", batch_log_probs[:10], "\n")
                 # print("batch_log_probs.shape: ", batch_log_probs.shape, "\n")
                 
@@ -586,9 +604,9 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
                 
                 # finally break out of loop if the number of gradient steps exceeds NUM_STEPS
                 policy_evaluation_gradient_step_count += 1
-                if policy_evaluation_gradient_step_count >= NUM_STEPS: break
+                if policy_evaluation_gradient_step_count >= NUM_EVAL_STEPS: break
             # also break out of outer loop
-            if policy_evaluation_gradient_step_count >= NUM_STEPS: break
+            if policy_evaluation_gradient_step_count >= NUM_EVAL_STEPS: break
 
                 
         # 2 - policy improvement
@@ -607,16 +625,16 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
                 batch_start = i*POL_IMP_BATCH_SIZE
                 batch_end = min((i+1)*POL_IMP_BATCH_SIZE, experiences.size())
 
-                batch_obs = observations[batch_start : batch_end].detach()
+                batch_obs = observations[batch_start : batch_end]#.detach()
                 # print(batch_obs, "\n")
                 
                 # batch_action_samples' shape is [batch_size, POL_IMP_FRESH_ACTION_SAMPLE_SIZE, action_size]
-                batch_action_samples = fresh_action_samples2[batch_start : batch_end].detach()
+                batch_action_samples = fresh_action_samples2[batch_start : batch_end]
                 # print("batch_action_samples: ", batch_action_samples, "\n")
                 # print("batch_action_samples.size: ", batch_action_samples.size, "\n")
                 
                 # batch_log_probs' shape is [batch_size, POL_IMP_FRESH_ACTION_SAMPLE_SIZE]
-                batch_log_probs = fresh_log_probs2[batch_start : batch_end].detach()
+                batch_log_probs = fresh_log_probs2[batch_start : batch_end]
                 # print("batch_log_probs: ", batch_log_probs, "\n")
                 # print("batch_log_probs.size: ", batch_log_probs.size, "\n")
                 
@@ -624,8 +642,17 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
                 # the q-value function with the current policy's distribution, through KL divergence
                 target_exped_qval = self._compute_exponentiated_qval(batch_obs, batch_action_samples)
                 policy_val = torch.mean(batch_log_probs, dim=1)
-                criterion = nn.KLDivLoss(reduction="batchmean")
-                loss = criterion(policy_val, target_exped_qval)
+
+                #TODO EXPERIMENTAL TRYING OUT THE CLEAN RL LOSS FUNCTION
+                # BELOW IS MY ORIGINAL APPROACH
+                # criterion = nn.KLDivLoss(reduction="batchmean")
+                # loss = criterion(policy_val, target_exped_qval)
+
+                # BELOW IS CLEAN RL
+                target_qval = torch.log(target_exped_qval)
+                loss = ((self.alpha * policy_val) - target_qval).mean()
+
+                #END EXPERIMENTAL
                 
                 # then, we improve the policy by minimizing this loss 
                 self.optim_policy.zero_grad()
@@ -636,7 +663,8 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
                 self.TEMP_policy_counter += 1 #TODO
                 if self.TEMP_policy_counter % self.update_qnet_every_N_gradient_steps == 0: 
                     print("See policy!", "\n")
-                    print("policy target_exped_qval[:10]: ", target_exped_qval[:10], "\npolicy target_exped_qval.shape: ", target_exped_qval.shape, "\n")
+                    # print("policy target_exped_qval[:10]: ", target_exped_qval[:10], "\npolicy target_exped_qval.shape: ", target_exped_qval.shape, "\n")
+                    print("policy target_qval[:10]: ", target_qval[:10], "\npolicy target_qval.shape: ", target_qval.shape, "\n")
                     print("policy_val[:10]: ", policy_val[:10], "\npolicy_val.shape: ", policy_val.shape, "\n")
                     print("policy loss: ", loss, "\npolicy loss.shape: ", loss.shape, "\n")
 
@@ -644,33 +672,29 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
 
                 # finally increment the improvement gradient step count
                 policy_improvement_gradient_step_count += 1
-                if policy_improvement_gradient_step_count >= NUM_STEPS: break
+                if policy_improvement_gradient_step_count >= NUM_IMP_STEPS: break
             # also break out of outer loop
-            if policy_improvement_gradient_step_count >= NUM_STEPS: break 
+            if policy_improvement_gradient_step_count >= NUM_IMP_STEPS: break 
                 
     def _compute_exponentiated_qval(self, batch_obs, batch_action_samples):
         # predicted q_val for each qnet of the shape [batch, num_samples]
         qnet1_val = torch.cat([
                                     self.qnet1(batch_obs, torch.squeeze(batch_action_samples[:, i, :], dim=1))
-                                    for i in range(batch_action_samples.shape[1])  
-                                    # self.qnet1(batch_obs, torch.squeeze(batch_single_sample, dim=1)) 
-                                    # for batch_single_sample in torch.split(batch_action_samples, 1, dim=1)
+                                    for i in range(batch_action_samples.shape[1])
                                     ],
                                     dim=1
                                 )
         qnet2_val = torch.cat([
                                     self.qnet2(batch_obs, torch.squeeze(batch_action_samples[:, i, :], dim=1))
-                                    for i in range(batch_action_samples.shape[1])  
-                                    # self.qnet2(batch_obs, torch.squeeze(batch_single_sample, dim=1)) 
-                                    # for batch_single_sample in torch.split(batch_action_samples, 1, dim=1)
+                                    for i in range(batch_action_samples.shape[1])
                                     ],
                                     dim=1
                                 )
         # print("qnet1_val: ", qnet1_val, "\n", "qnet1_val.shape: ", qnet1_val.shape, "\n")
-        qnet1_exp_val, qnet2_exp_val = torch.exp(qnet1_val), torch.exp(qnet2_val)
-        # print("qnet1_exp_val: ", qnet1_exp_val, "\n", "qnet1_exp_val.shape: ", qnet1_exp_val.shape, "\n")
         # the minimum of those predictions of the shape [batch, num_samples]
-        exp_qval_minimum = torch.minimum(qnet1_exp_val, qnet2_exp_val)
+        qval_minimum = torch.minimum(qnet1_val, qnet2_val)
+        # print("qval_minimum: ", qval_minimum, "\n", "qval_minimum.shape: ", qval_minimum.shape, "\n")
+        exp_qval_minimum = torch.exp(qval_minimum)
         # print("exp_qval_minimum: ", exp_qval_minimum, "\n", "exp_qval_minimum.shape: ", exp_qval_minimum.shape, "\n")
         # the mean of those predictions of the shape [batch]
         mean_exp_qval = torch.mean(exp_qval_minimum, dim=1, dtype=torch.float32)
@@ -681,9 +705,7 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
         qnet1_tar_preds = torch.cat(
                                 [
                                     self.qnet1_tar(batch_nextobs, torch.squeeze(batch_action_samples[:, i, :], dim=1))
-                                    for i in range(batch_action_samples.shape[1])  
-                                    # self.qnet1_tar(batch_nextobs, torch.squeeze(batch_single_sample, dim=1)) 
-                                    # for batch_single_sample in torch.split(batch_action_samples, 1, dim=1)
+                                    for i in range(batch_action_samples.shape[1])
                                 ], 
                                 dim=1
                                 )
@@ -691,9 +713,7 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
         qnet2_tar_preds = torch.cat(
                                 [
                                     self.qnet2_tar(batch_nextobs, torch.squeeze(batch_action_samples[:, i, :], dim=1))
-                                    for i in range(batch_action_samples.shape[1])  
-                                    # self.qnet2_tar(batch_nextobs, torch.squeeze(batch_single_sample, dim=1)) 
-                                    # for batch_single_sample in torch.split(batch_action_samples, 1, dim=1)
+                                    for i in range(batch_action_samples.shape[1])
                                 ], 
                                 dim=1
                                 )
@@ -731,13 +751,13 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
         self.qnet1_tar.load_state_dict(self.qnet1.state_dict())
         self.qnet2_tar.load_state_dict(self.qnet2.state_dict())
 
-    def _unzip_experiences(experiences : ListBuffer, device = None):
+    def _unzip_experiences(experiences : Buffer, device = None):
         """
-        Unzips the experiences into groups of observations, actions, rewards, 
-        done flags, and next observations, to be returned.
+        Unzips the experiences into groups of observations, 
+        actions, rewards, done flags, and next observations, to be returned.
 
-        :param ListBuffer experiences: A ListBuffer containing obs, action, reward, done and next_obs.
-        :return Tuple[torch.tensor]: Tensors of each component in the ListBuffer; 
+        :param Buffer experiences: A Buffer containing obs, action, reward, done and next_obs.
+        :return Tuple[torch.tensor]: Tensors of each component in the Buffer; 
         observations, actions, rewards, dones, next_observations.
         """
         np_obs, np_act, np_rew, np_don, np_next_obs = experiences.get_components()

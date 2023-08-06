@@ -20,10 +20,10 @@ print()
 cpu_device = torch.device("cpu")
 
 # create the environment and determine specs about it
-env = gymnasium.make("BipedalWalker-v3", render_mode="human")
+env = gymnasium.make("BipedalWalker-v3")#, render_mode="human")
 observation_size = env.observation_space.shape[0]
 action_size = env.action_space.shape[0]
-action_ranges = tuple([(env.observation_space.low[i], env.observation_space.high[i]) for i in range(action_size)])
+action_ranges = tuple([(env.action_space.low[i], env.action_space.high[i]) for i in range(action_size)])
 
 print("The environment has observation of size: ", observation_size,
       " and action of size: ", action_size, ".")
@@ -31,8 +31,8 @@ print("The environment has observation of size: ", observation_size,
 learning_algorithm = SoftActorCritic(
     q_net_learning_rate=3e-4, 
     policy_learning_rate=1e-3, 
-    discount=0.95, 
-    temperature=0.6,
+    discount=0.99, 
+    temperature=0.8,
     observation_size=observation_size,
     action_size=action_size, 
     action_ranges=action_ranges,
@@ -44,9 +44,9 @@ learning_algorithm = SoftActorCritic(
 trainer = GymOffPolicyBaseTrainer(env, learning_algorithm)
 
 # The number of training steps that will be performed
-NUM_TRAINING_STEPS = 10000
+NUM_TRAINING_STEPS = 50000
 # The number of experiences to be initlally collected before doing any training
-NUM_INIT_EXP = 100
+NUM_INIT_EXP = 2000
 # The number of experiences to collect per training step
 NUM_NEW_EXP = 1
 # The maximum size of the Buffer
@@ -85,5 +85,5 @@ l_a = trainer.train(
     training_exploration_function=no_exploration,
     save_after_training=SAVE_AFTER_TRAINING,
     task_name=TASK_NAME,
-    render_evaluation=False
+    render_evaluation=True
     )
