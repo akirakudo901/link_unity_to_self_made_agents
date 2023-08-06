@@ -111,14 +111,52 @@ from trainers.unityenv_base_trainer import Buffer, Experience
 #                 ).numpy())
 # print(t1.shape)
 
-from torch import nn
-target = torch.tensor([-0.5708, ])#, -0.5431, -0.5547, -0.5632, -0.5331, -0.5343, -0.5604, -0.5390, -0.5585, -0.5543])
-# target = torch.tensor([-0.4457, -0.4419, -0.4457, -0.4404, -0.4406])
-# target = torch.tensor([-194.0212, -207.6462, -197.5734, -200.3207, -214.7844])
+# from torch import nn
+# target = torch.tensor([-0.5708, ])#, -0.5431, -0.5547, -0.5632, -0.5331, -0.5343, -0.5604, -0.5390, -0.5585, -0.5543])
+# # target = torch.tensor([-0.4457, -0.4419, -0.4457, -0.4404, -0.4406])
+# # target = torch.tensor([-194.0212, -207.6462, -197.5734, -200.3207, -214.7844])
 
-pred = torch.tensor([-2.0165, ])#,  2.0930, -2.6004, -0.8696,  0.9794,  2.6524,  1.0425, -1.2586, 2.6342, -1.1144])
+# pred = torch.tensor([-2.0165, ])#,  2.0930, -2.6004, -0.8696,  0.9794,  2.6524,  1.0425, -1.2586, 2.6342, -1.1144])
 
-criterion = nn.KLDivLoss(reduction="batchmean")
-loss = criterion(pred, target)
-print(loss)
+# criterion = nn.KLDivLoss(reduction="batchmean")
+# loss = criterion(pred, target)
+# print(loss)
+
+
+# import gymnasium
+# env = gymnasium.make("BipedalWalker-v3", render_mode="human")
+# observation_size = env.observation_space.shape[0]
+# action_size = env.action_space.shape[0]
+# action_ranges = tuple([(env.observation_space.low[i], env.observation_space.high[i]) for i in range(action_size)])
+# print(action_ranges)
+
+# learning_algorithm = SoftActorCritic(
+#     q_net_learning_rate=3e-4, 
+#     policy_learning_rate=1e-3, 
+#     discount=0.99, 
+#     temperature=0.8,
+#     observation_size=observation_size,
+#     action_size=action_size, 
+#     action_ranges=action_ranges,
+#     update_qnet_every_N_gradient_steps=1000,
+#     device=torch.device("cpu")
+#     # leave the optimizer as the default = Adam
+#     )
+
+# print("Multiplier: ", learning_algorithm.policy.action_multiplier)
+# print("Averages: ", learning_algorithm.policy.action_avgs)
+
+# def uniform_random_sampling(actions, env):
+#     # initially sample actions from a uniform random distribution of the right
+#     # range, in order to extract good reward signals
+#     action_zero_to_one = torch.rand(size=(learning_algorithm.act_size,)).cpu()
+#     action_minus_one_to_one = action_zero_to_one * 2.0 - 1.0
+#     adjusted_actions = (action_minus_one_to_one * 
+#                         learning_algorithm.policy.action_multiplier.detach().cpu() + 
+#                         learning_algorithm.policy.action_avgs.detach().cpu())
+#     return adjusted_actions.numpy()
+
+# for _ in range(10):
+#     action = uniform_random_sampling(None, None)
+#     print(action, "\n")
                 

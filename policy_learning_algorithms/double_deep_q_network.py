@@ -1,10 +1,5 @@
 """
 A DDQN algorithm to be used as learning algorithm.
-I want to try adding a component which predicts good actions to be evaluated using the 
-Q learning approach, then takes the best action.
-
-This will be another DNN which takes a state and spits out about 100 action pairs
-that are 
 """
 
 from datetime import datetime
@@ -17,13 +12,9 @@ import torch.optim as optim
 
 from trainers.gym_base_trainer import ListBuffer
 
-DNN_SAVE_FOLDER = "./dnns"
+DNN_SAVE_FOLDER = "trained_algorithms/DNN"
 
 UPDATE_TARGET_DNN_EVERY_N = 4096
-MAX_BUFFER_SIZE = 4096
-
-ACTION_DISCRETIZED_NUMBER = 100
-MAX, MIN = 0.5, -0.5
 
 class DDQN:
 
@@ -55,32 +46,35 @@ class DDQN:
         
         self.dnn_policy = DDQN.DNN(
             input_size=observation_size, 
-            output_size=action_size * ACTION_DISCRETIZED_NUMBER
+            output_size=action_size
             ).to(self.device)
         self.dnn_target = DDQN.DNN(
             input_size=observation_size, 
-            output_size=action_size * ACTION_DISCRETIZED_NUMBER
+            output_size=action_size
             ).to(self.device)
 
         self.optim = optim.Adam(self.dnn_policy.parameters(), lr=l_r)
     
-    def __call__(self, state_numpy):
-        return self.dnn_policy(torch.from_numpy(state_numpy))
+    def __call__(self, state):
+        return self.get_optimal_action(state)
         
     # "state" is a tuple of four values
     def get_optimal_action(self, state):
-        state_tensor = torch.tensor(state).to(self.device).unsqueeze(0)
+        if type(state) == type(np.array([0])):
+            state_tensor = torch.from_numpy(state)
+        elif type(state) != type(torch.tensor([0])):
+            raise Exception("State passed to get_optimal_action should be a np.array or torch.tensor.")        
+        state_tensor = state_tensor.to(self.device).unsqueeze(0)
         prediction = self.dnn_policy(state_tensor)
         return torch.argmax(prediction).item()
     
     def save(self, taskName, path=None):
         creation_time = datetime.now().strftime("%Y_%m_%d_%H_%M")
         if path is None: 
-            path = DNN_SAVE_FOLDER + "/" + taskName + creation_time + ".pth"
+            path = f"{DNN_SAVE_FOLDER}/{taskName}_{creation_time}.pth"
         torch.save(self.dnn_policy.state_dict(), path)
 
-    def load(self, taskName, path=None):
-        if path is None: path = "./dnns/" + taskName + ".pth"
+    def load(self, path):
         self.dnn_policy.load_state_dict(torch.load(path))
         # move to self.device
         self.dnn_policy.to(self.device)
@@ -90,14 +84,8 @@ class DDQN:
         BATCH_SIZE = 32
         EPOCHS = 12
         
-        if len(buffer) > MAX_BUFFER_SIZE:
-            buffer.reverse() #ensures that newest experience at end is kept
-            buffer = buffer[:MAX_BUFFER_SIZE]
-        elif len(buffer) < BATCH_SIZE: #if buffer too small, pass
-            return
-        
         loss_fn = nn.MSELoss()
-        reshape_size = (len(batch), self.action_size, ACTION_DISCRETIZED_NUMBER)
+        reshape_size = (len(batch), self.action_size)
 
         for _ in range(EPOCHS):
             random.shuffle(buffer)
@@ -145,22 +133,3 @@ class DDQN:
     # Updates the target dnn by setting its values equal to that of the policy dnn
     def _update_target(self):
         self.dnn_target.load_state_dict(self.dnn_policy.state_dict())
-
-    @staticmethod
-    def convert_discrete_action_to_continuous(discrete_actions : torch.tensor) -> np.ndarray:
-        """
-        Input tensor is of shape (batch, 39) where each of the 39 values are an integer
-        between 0 and (ACTION_DISCRETIZED_NUMBER - 1).
-        We convert these back into floats of value between MAX and MIN. 
-        """
-        continuous_actions = discrete_actions * ((MAX - MIN) / ACTION_DISCRETIZED_NUMBER) + MIN
-        return continuous_actions
-    
-    @staticmethod
-    def convert_continuous_action_to_discrete(continuous_actions : torch.tensor) -> np.ndarray:
-        """
-        Input tensor is of shape (batch, 39) where each of the 39 values are floats between MIN 
-        and MAX. We convert these into value between 0 and (ACTION_DISCRETIZED_NUMBER = 1).
-        """
-        discrete_actions = (continuous_actions - MIN) // ((MAX - MIN) / ACTION_DISCRETIZED_NUMBER)
-        return discrete_actions

@@ -50,7 +50,7 @@ learning_algorithm = SoftActorCritic(
 trainer = OffPolicyBaseTrainer(env, behavior_name, learning_algorithm)
 
 # The number of training steps that will be performed
-NUM_TRAINING_STEPS = 1000000
+NUM_TRAINING_STEPS = 10000
 # The number of experiences to be initlally collected before doing any training
 NUM_INIT_EXP = 1000
 # The number of experiences to collect per training step
@@ -60,7 +60,17 @@ BUFFER_SIZE = 10**4
 
 TASK_NAME = "SAC" + "_Walker"
 
-#TODO Is there a way for me to move DISCRETIZED_NUM to ddqn? 
+def uniform_random_sampling(actions, env):
+    # initially sample actions from a uniform random distribution of the right
+    # range, in order to extract good reward signals
+    num_agents = actions.shape[0]
+    action_zero_to_one = torch.rand(size=(num_agents, learning_algorithm.act_size,)).cpu()
+    action_minus_one_to_one = action_zero_to_one * 2.0 - 1.0
+    adjusted_actions = (action_minus_one_to_one * 
+                        learning_algorithm.policy.action_multiplier.detach().cpu() + 
+                        learning_algorithm.policy.action_avgs.detach().cpu())
+    return adjusted_actions.numpy()
+
 def no_exploration(actions : torch.tensor, env : BaseEnv):
     # since exploration is inherent in SAC, we don't need epsilon to do anything
     # we however need to convert torch.tensor back to numpy arrays.
@@ -71,7 +81,9 @@ l_a = trainer.train(
     num_new_experience=NUM_NEW_EXP, 
     max_buffer_size=BUFFER_SIZE,
     num_initial_experiences=NUM_INIT_EXP,
-    exploration_function=no_exploration,
+    evaluate_every_N_steps=NUM_TRAINING_STEPS // 100,
+    initial_exploration_function=uniform_random_sampling,
+    training_exploration_function=no_exploration,
     save_after_training=SAVE_AFTER_TRAINING,
     task_name=TASK_NAME
     )

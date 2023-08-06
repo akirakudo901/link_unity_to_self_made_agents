@@ -15,7 +15,6 @@ import numpy as np
 
 from mlagents_envs.environment import ActionTuple, BaseEnv, BehaviorName
 import matplotlib.pyplot as plt
-from tqdm import tqdm
 
 class Experience(NamedTuple):
     """
@@ -276,7 +275,9 @@ class OffPolicyBaseTrainer(OnPolicyBaseTrainer):
             num_new_experience : int,
             max_buffer_size : int,
             num_initial_experiences : int,
-            exploration_function,
+            evaluate_every_N_steps : int,
+            initial_exploration_function,
+            training_exploration_function,
             save_after_training : bool,
             task_name : str
         ):
@@ -290,8 +291,11 @@ class OffPolicyBaseTrainer(OnPolicyBaseTrainer):
         :param int max_buffer_size: The maximum number of experience to be kept in the buffer.
         :param int num_initial_experiences: The number of experiences to be collected in the 
         buffer first before doing any learning.
-        :param exploration_function: A function which controls how exploration is handled 
-        during collection of experiences.
+        :param int evaluate_every_N_steps: We evaluate the algorithm at this interval.
+        :param initial_exploration_function: A function which controls how exploration is 
+        handled at the very beginning, when exploration is generated.
+        :param training_exploration_function: A function which controls how exploration is handled 
+        during training of the algorithm.
         :param bool save_after_training: Whether to save the policy after training.
         :param str task_name: The name of the task to log when saving after training.
         """
@@ -303,22 +307,25 @@ class OffPolicyBaseTrainer(OnPolicyBaseTrainer):
             experiences : Buffer = []
 
             # first populate the buffer with num_initial_experiences experiences
+            print(f"Generating {num_initial_experiences} initial experiences...")
             init_exp, _ = self.generate_batch_of_experiences(
                 buffer_size=num_initial_experiences,
-                exploration_function=exploration_function,
+                exploration_function=initial_exploration_function,
                 behavior_name=self.behavior_name
             )
+            print("Generation successful!")
+
             experiences.extend(init_exp)
             random.shuffle(experiences)
             if len(experiences) > max_buffer_size:
                 experiences = experiences[:max_buffer_size]
                 
             # then go into the training loop
-            for _ in tqdm(range(num_training_steps)):
+            for i in range(num_training_steps):
                 
                 new_exp, _ = self.generate_batch_of_experiences(
                     buffer_size=num_new_experience,
-                    exploration_function=exploration_function,
+                    exploration_function=training_exploration_function,
                     behavior_name=self.behavior_name
                 )
                 
@@ -328,12 +335,11 @@ class OffPolicyBaseTrainer(OnPolicyBaseTrainer):
                     experiences = experiences[:max_buffer_size]
                 self.learning_algorithm.update(experiences)
                 
-                _, reward = self.generate_batch_of_experiences(
-                    buffer_size=100,
-                    exploration_function=exploration_function,
-                    behavior_name=self.behavior_name
-                )
-                cumulative_rewards.append(reward)
+                # evaluate sometimes
+                if (i + 1) % (evaluate_every_N_steps) == 0:
+                    cumulative_reward = self.evaluate(1)
+                    cumulative_rewards.append(cumulative_reward)
+                    print(f"Training loop {i+1} successfully ended: reward={cumulative_reward}.\n")
                 
             if save_after_training: self.learning_algorithm.save(task_name)
 
@@ -352,17 +358,10 @@ class OffPolicyBaseTrainer(OnPolicyBaseTrainer):
                 
             return self.learning_algorithm
     
-    def evaluate(
-            self,
-            num_training_steps : int,
-            num_new_experience : int,
-            max_buffer_size : int,
-            exploration_function,
-            save_after_training : bool,
-            task_name : str
-            ):
-            self.generate_batch_of_experiences(
-                    buffer_size=100,
-                    exploration_function=exploration_function,
-                    behavior_name=self.behavior_name
-                )
+    def evaluate(self, num_samples : int = 1):
+        return 0
+            # self.generate_batch_of_experiences(
+            #         buffer_size=100,
+            #         exploration_function=exploration_function,
+            #         behavior_name=self.behavior_name
+            #     )

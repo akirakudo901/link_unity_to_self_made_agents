@@ -51,23 +51,40 @@ import torch
 # )
 # print(t4)
 
-from torch.distributions.normal import Normal
+# from torch.distributions.normal import Normal
 
-myus = torch.tensor([0, 0.1, 0.2, 0.3], dtype=torch.float32)
-sigmas = torch.tensor([0.05, 0.1, 0.15, 0.20], dtype=torch.float32)
+# myus = torch.tensor([0, 0.1, 0.2, 0.3], dtype=torch.float32)
+# sigmas = torch.tensor([0.05, 0.1, 0.15, 0.20], dtype=torch.float32)
 
-norm = Normal(myus, sigmas)
-rs = norm.rsample(sample_shape=(10,))
-print("rs: ", rs, "\n", "shape: ", rs.shape)
-jacobian_trace = torch.sum((1 - torch.tanh(rs)**2), dim=1)
-print("jacobian_trace: ", jacobian_trace, "\n", "shape: ", jacobian_trace.shape)
+# norm = Normal(myus, sigmas)
+# rs = norm.rsample(sample_shape=(10,))
+# print("rs: ", rs, "\n", "shape: ", rs.shape)
+# jacobian_trace = torch.sum((1 - torch.tanh(rs)**2), dim=1)
+# print("jacobian_trace: ", jacobian_trace, "\n", "shape: ", jacobian_trace.shape)
 
-squashed = torch.tanh(rs)
-print("squashed: ", squashed, "\n", "shape: ", squashed.shape)
-derivative = (1 - squashed**2)
-print("derivative: ", derivative, "\n", "shape: ", derivative.shape)
-sum = torch.sum(derivative, dim=1)
-print("sum: ", sum, "\n", "shape: ", sum.shape)
-
+# squashed = torch.tanh(rs)
+# print("squashed: ", squashed, "\n", "shape: ", squashed.shape)
+# derivative = (1 - squashed**2)
+# print("derivative: ", derivative, "\n", "shape: ", derivative.shape)
+# sum = torch.sum(derivative, dim=1)
+# print("sum: ", sum, "\n", "shape: ", sum.shape)
 
 # rsample and sample seem to be mostly equivalent
+
+# class A:
+
+#     def __getitem__(self, slice):
+#         print(slice)
+#         print(slice.start, slice.stop, slice.step)
+
+# a = A()
+# a[1:9:3]
+
+from typing import NamedTuple
+
+class B(NamedTuple):
+    attA : int
+    attB : str
+
+b = B(attA=1, attB="attB")
+print(list(*b))

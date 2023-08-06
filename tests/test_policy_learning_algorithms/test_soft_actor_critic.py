@@ -5,16 +5,27 @@ import numpy as np
 import torch
 
 from policy_learning_algorithms.soft_actor_critic import SoftActorCritic
-from trainers.unityenv_base_trainer import Experience
+from trainers.utils.buffer import Buffer, ListBuffer, NdArrayBuffer
+from trainers.utils.experience import Experience
 
 class TestSoftActorCritic(unittest.TestCase):
+
+    BUFFER_CLASS = ListBuffer
        
     def test_SoftActorCritic_unzip_experiences(self):
-        experiences1 = [
-            Experience(obs=np.array([0,1,2]), action=np.array([50,51,52]), reward=0.5, done=False, next_obs=[20,21,22]),
-            Experience(obs=np.array([3,4,5]), action=np.array([53,54,55]), reward=0.7, done=False, next_obs=[23,24,25]),
-            Experience(obs=np.array([6,7,8]), action=np.array([56,57,58]), reward=0.9, done=True , next_obs=[26,27,28]),
-            ]
+        MAX_SIZE, OBS_SHAPE, ACT_SHAPE = 1000, (3, ), (3, ) 
+        
+        experiences1 = TestSoftActorCritic.BUFFER_CLASS(max_size=MAX_SIZE, obs_shape=OBS_SHAPE, act_shape=ACT_SHAPE)
+        experiences1.append_experience(
+            *Experience(obs=np.array([0,1,2]), action=np.array([50,51,52]), reward=0.5, done=False, next_obs=[20,21,22])
+        )
+        experiences1.append_experience(
+            *Experience(obs=np.array([3,4,5]), action=np.array([53,54,55]), reward=0.7, done=False, next_obs=[23,24,25])
+        )
+        experiences1.append_experience(
+            *Experience(obs=np.array([6,7,8]), action=np.array([56,57,58]), reward=0.9, done=True , next_obs=[26,27,28])
+        )
+
         exp_obs1     = torch.tensor([[0,1,2], [3,4,5], [6,7,8]])
         exp_acts1    = torch.tensor([[50,51,52], [53,54,55], [56,57,58]])
         exp_rews1    = torch.tensor([0.5, 0.7, 0.9])
@@ -211,9 +222,12 @@ class TestSoftActorCritic_Policy(unittest.TestCase):
         batch_dones = [False, True]
         batch_nextobs = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]) #observation_size is 3
 
-        experiences = [Experience(obs=batch_obs[i], action=batch_actions[i], reward=batch_rewards[i], 
+        exp_list = [Experience(obs=batch_obs[i], action=batch_actions[i], reward=batch_rewards[i], 
                                   done=batch_dones[i], next_obs=batch_nextobs[i]) for i in range(2)]
-        
+        experiences = ListBuffer(max_size=1000, obs_shape=(OBSERVATION_SIZE, ), act_shape=(ACTION_SIZE, ))
+        experiences.append_experience(*exp_list[0])
+        experiences.append_experience(*exp_list[1])
+
         new_batch_obs, new_batch_actions, new_batch_rewards, new_batch_dones, new_batch_nextobs = SoftActorCritic._unzip_experiences(experiences)
         
         print("new_batch_obs: ",new_batch_obs, "new_batch_actions: ", new_batch_actions, 

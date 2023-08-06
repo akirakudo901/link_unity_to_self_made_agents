@@ -211,7 +211,7 @@ import torch.optim as optim
 from torch.distributions.normal import Normal
 
 from policy_learning_algorithms.policy_learning_algorithm import OffPolicyLearningAlgorithm
-from trainers.unityenv_base_trainer import Buffer
+from trainers.gym_base_trainer import ListBuffer
 
 class SoftActorCritic(OffPolicyLearningAlgorithm):
 
@@ -265,10 +265,6 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
             x = self.linear_relu_stack(inp)
             out = self.last_fc(x)
             return out
-        
-        # #TODO placeholder for debug
-        # def __call__(self, obs : torch.tensor, actions : torch.tensor):
-        #     return torch.mean(obs, dim=1, keepdim=True) + actions 
 
     class Policy(nn.Module):
         """
@@ -449,6 +445,9 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
         self.pol_l_r = policy_learning_rate
         self.d_r = discount
         self.alpha = temperature
+        self.obs_size = observation_size
+        self.act_size = action_size
+        self.act_ranges = action_ranges
         self.update_qnet_every_N_gradient_steps = update_qnet_every_N_gradient_steps
         
         if device == None:
@@ -490,7 +489,7 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
         """
         return self.get_optimal_action(state)
       
-    def update(self, experiences : Buffer):
+    def update(self, experiences : ListBuffer):
         # "experiences" is a list of experiences: (obs, action, reward, done, next_obs)
         NUM_STEPS = 1
 
@@ -501,7 +500,6 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
         POLICY_IMP_NUM_EPOCHS = 1
         POL_IMP_BATCH_SIZE = 1028
         POL_IMP_FRESH_ACTION_SAMPLE_SIZE = 1
-        random.shuffle(experiences)
         observations, actions, rewards, dones, next_observations = SoftActorCritic._unzip_experiences(experiences, device=self.device)
         # print("observations.shape: ", observations.shape)
         # print("actions.shape: ", actions.shape)
@@ -522,9 +520,9 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
         policy_evaluation_gradient_step_count = 0
 
         for _ in range(POLICY_EVAL_NUM_EPOCHS):
-            for i in range(len(experiences) // POL_EVAL_BATCH_SIZE + 1):
+            for i in range(experiences.size() // POL_EVAL_BATCH_SIZE + 1):
                 batch_start = i*POL_EVAL_BATCH_SIZE
-                batch_end = min((i+1)*POL_EVAL_BATCH_SIZE, len(experiences))
+                batch_end = min((i+1)*POL_EVAL_BATCH_SIZE, experiences.size())
 
                 batch_obs = observations[batch_start : batch_end].detach()
                 # print("batch_obs[:10]: ", batch_obs[:10], "\n")
@@ -579,10 +577,12 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
                 self.qnet_update_counter += 1
                 if self.qnet_update_counter % self.update_qnet_every_N_gradient_steps == 0:
                     self._update_target_networks()
-                    print("Updated qnet!")
-                    print("targets[:10]: ", targets[:10], "targets.shape: ", targets.shape, "\n")
-                    print("predictions1[:10]: ", predictions1[:10], "predictions1.shape: ", predictions1.shape)
-                    print("loss1: ", loss1, "loss1.shape: ", loss1.shape)
+
+                    
+                    print("Updated qnet!\n") #TODO REMOVE
+                    print("qnet targets[:10]: ", targets[:10], "\nqnet targets.shape: ", targets.shape, "\n")
+                    print("qnet predictions1[:10]: ", predictions1[:10], "\nqnet predictions1.shape: ", predictions1.shape, "\n")
+                    print("qnet loss1: ", loss1, "\nqnet loss1.shape: ", loss1.shape, "\n")
                 
                 # finally break out of loop if the number of gradient steps exceeds NUM_STEPS
                 policy_evaluation_gradient_step_count += 1
@@ -603,9 +603,9 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
         policy_improvement_gradient_step_count = 0
 
         for _ in range(POLICY_IMP_NUM_EPOCHS):
-            for i in range(len(experiences) // POL_IMP_BATCH_SIZE + 1):
+            for i in range(experiences.size() // POL_IMP_BATCH_SIZE + 1):
                 batch_start = i*POL_IMP_BATCH_SIZE
-                batch_end = min((i+1)*POL_IMP_BATCH_SIZE, len(experiences))
+                batch_end = min((i+1)*POL_IMP_BATCH_SIZE, experiences.size())
 
                 batch_obs = observations[batch_start : batch_end].detach()
                 # print(batch_obs, "\n")
@@ -620,13 +620,12 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
                 # print("batch_log_probs: ", batch_log_probs, "\n")
                 # print("batch_log_probs.size: ", batch_log_probs.size, "\n")
                 
-                # Then, we compute the loss function: which is the difference between the expected log probs
-                # of actions in the buffer and the expected q-value for the same actions????             
-                target_qval = self._compute_exponentiated_qval(batch_obs, batch_action_samples)
-                log_target_qval = torch.log(target_qval)
+                # Then, we compute the loss function: which relates the exponentiated distribution of
+                # the q-value function with the current policy's distribution, through KL divergence
+                target_exped_qval = self._compute_exponentiated_qval(batch_obs, batch_action_samples)
                 policy_val = torch.mean(batch_log_probs, dim=1)
-                criterion = nn.L1Loss()
-                loss = criterion(policy_val, log_target_qval)
+                criterion = nn.KLDivLoss(reduction="batchmean")
+                loss = criterion(policy_val, target_exped_qval)
                 
                 # then, we improve the policy by minimizing this loss 
                 self.optim_policy.zero_grad()
@@ -636,10 +635,12 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
                 # TODO REMOVE
                 self.TEMP_policy_counter += 1 #TODO
                 if self.TEMP_policy_counter % self.update_qnet_every_N_gradient_steps == 0: 
-                    print("See policy!")
-                    print("log_target_qval[:10]: ", log_target_qval[:10], "log_target_qval.shape: ", log_target_qval.shape, "\n")
-                    print("policy_val[:10]: ", policy_val[:10], "policy_val.shape: ", policy_val.shape)
-                    print("loss: ", loss, "loss.shape: ", loss.shape)
+                    print("See policy!", "\n")
+                    print("policy target_exped_qval[:10]: ", target_exped_qval[:10], "\npolicy target_exped_qval.shape: ", target_exped_qval.shape, "\n")
+                    print("policy_val[:10]: ", policy_val[:10], "\npolicy_val.shape: ", policy_val.shape, "\n")
+                    print("policy loss: ", loss, "\npolicy loss.shape: ", loss.shape, "\n")
+
+                # END TOREMOVE
 
                 # finally increment the improvement gradient step count
                 policy_improvement_gradient_step_count += 1
@@ -730,27 +731,27 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
         self.qnet1_tar.load_state_dict(self.qnet1.state_dict())
         self.qnet2_tar.load_state_dict(self.qnet2.state_dict())
 
-    def _unzip_experiences(experiences : Buffer, device = None):
+    def _unzip_experiences(experiences : ListBuffer, device = None):
         """
         Unzips the experiences into groups of observations, actions, rewards, 
         done flags, and next observations, to be returned.
 
-        :param Buffer experiences: A Buffer containing obs, action, reward, done and next_obs.
-        :return Tuple[torch.tensor]: Tensors of each component in the Buffer; 
+        :param ListBuffer experiences: A ListBuffer containing obs, action, reward, done and next_obs.
+        :return Tuple[torch.tensor]: Tensors of each component in the ListBuffer; 
         observations, actions, rewards, dones, next_observations.
         """
+        np_obs, np_act, np_rew, np_don, np_next_obs = experiences.get_components()
+        observations, actions, rewards, dones, next_observations = (torch.from_numpy(np_obs).to(SoftActorCritic.NUMBER_DTYPE),
+                                                                    torch.from_numpy(np_act).to(SoftActorCritic.NUMBER_DTYPE),
+                                                                    torch.from_numpy(np_rew).to(SoftActorCritic.NUMBER_DTYPE),
+                                                                    torch.from_numpy(np_don),
+                                                                    torch.from_numpy(np_next_obs).to(SoftActorCritic.NUMBER_DTYPE))
         if device != None:
-            observations      = torch.from_numpy(np.stack([exp.obs      for exp in experiences])).to(SoftActorCritic.NUMBER_DTYPE).to(device)
-            actions           = torch.from_numpy(np.stack([exp.action   for exp in experiences])).to(SoftActorCritic.NUMBER_DTYPE).to(device)
-            rewards           = torch.from_numpy(np.stack([exp.reward   for exp in experiences])).to(SoftActorCritic.NUMBER_DTYPE).to(device)
-            dones             = torch.from_numpy(np.stack([exp.done     for exp in experiences])).to(device)
-            next_observations = torch.from_numpy(np.stack([exp.next_obs for exp in experiences])).to(SoftActorCritic.NUMBER_DTYPE).to(device)
-        else:
-            observations      = torch.from_numpy(np.stack([exp.obs      for exp in experiences])).to(SoftActorCritic.NUMBER_DTYPE)
-            actions           = torch.from_numpy(np.stack([exp.action   for exp in experiences])).to(SoftActorCritic.NUMBER_DTYPE)
-            rewards           = torch.from_numpy(np.stack([exp.reward   for exp in experiences])).to(SoftActorCritic.NUMBER_DTYPE)
-            dones             = torch.from_numpy(np.stack([exp.done     for exp in experiences]))
-            next_observations = torch.from_numpy(np.stack([exp.next_obs for exp in experiences])).to(SoftActorCritic.NUMBER_DTYPE)
+            observations, actions, rewards, dones, next_observations = (torch.from_numpy(np_obs).to(device),
+                                                                        torch.from_numpy(np_act).to(device),
+                                                                        torch.from_numpy(np_rew).to(device),
+                                                                        torch.from_numpy(np_don).to(device),
+                                                                        torch.from_numpy(np_next_obs).to(device))
         return observations,actions,rewards,dones,next_observations
     
     def get_optimal_action(self, state):
