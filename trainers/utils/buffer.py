@@ -131,7 +131,7 @@ class NdArrayBuffer(Buffer):
     https://unity-technologies.github.io/ml-agents/Python-LLAPI-Documentation/#mlagents_envs.base_env
     """
 
-    def __init__(self, max_buffer_size : int, obs_shape, act_shape):
+    def __init__(self, max_size : int, obs_shape, act_shape):
         """
         Initialize a numpy buffer with max_buffer_size capacity which we control
         based on 0-based indicing with the current and max sizes.
@@ -140,13 +140,13 @@ class NdArrayBuffer(Buffer):
         :param obs_shape: The shape of the osbervation space.
         :param act_shape: The shape of the action space.
         """
-        self.obs      = np.empty(shape=[max_buffer_size] + obs_shape, dtype=np.float32)
-        self.actions  = np.empty(shape=[max_buffer_size] + act_shape, dtype=np.float32)
-        self.rewards  = np.empty(shape=[max_buffer_size],             dtype=np.float32)
-        self.dones    = np.empty(shape=[max_buffer_size],             dtype=np.float32)
-        self.next_obs = np.empty(shape=[max_buffer_size] + obs_shape, dtype=np.float32)
+        self.obs      = np.empty(shape=[max_size] + list(obs_shape), dtype=np.float32)
+        self.actions  = np.empty(shape=[max_size] + list(act_shape), dtype=np.float32)
+        self.rewards  = np.empty(shape=[max_size],             dtype=np.float32)
+        self.dones    = np.empty(shape=[max_size],             dtype=np.float32)
+        self.next_obs = np.empty(shape=[max_size] + list(obs_shape), dtype=np.float32)
         
-        self.ptr, self.size, self.max_size = 0, 0, max_buffer_size
+        self._ptr, self._size, self.max_size = 0, 0, max_size
     
     def append_experience(self, obs : np.ndarray, act : np.ndarray, rew : float, don : bool, next_obs : np.ndarray):
         """
@@ -158,14 +158,14 @@ class NdArrayBuffer(Buffer):
         :param np.ndarray next_obs: The new next observation.
         """
         # self.size corresponds to insert location (since we use 0-based index)
-        self.obs[self.ptr] = obs
-        self.actions[self.ptr] = act
-        self.rewards[self.ptr] = rew
-        self.dones[self.ptr] = don
-        self.next_obs[self.ptr] = next_obs
+        self.obs[self._ptr] = obs
+        self.actions[self._ptr] = act
+        self.rewards[self._ptr] = rew
+        self.dones[self._ptr] = don
+        self.next_obs[self._ptr] = next_obs
         # update size and ptr
-        self.ptr = (self.ptr + 1) % self.ptr
-        self.size = self.size + 1 if self.size < self.max_size else self.size
+        self._ptr = (self._ptr + 1) % self.max_size
+        self._size = self._size + 1 if self._size < self.max_size else self._size
     
     def extend_buffer(self, buffer):
         """
@@ -182,8 +182,8 @@ class NdArrayBuffer(Buffer):
         1) calculate SKIPPING = buffer.size() - self.max_size which should be the number of addition 
            that won't matter since wrapping around will override them
         3) we determine the new pointer position after SKIPPING additions, which takes us to position
-           (self.size() + SKIPPING) % 100
-        4) from this position, we add 100 as we wrap around, using COPY_CONTENT
+           (self.size() + SKIPPING) % self.max_size
+        4) from this position, we add self.max_size as we wrap around, using COPY_CONTENT
 
         b1: 100 max, 30 filled
         b2: 400 max, 350 filled
@@ -194,14 +194,40 @@ class NdArrayBuffer(Buffer):
         1) fill 250, but hypothetically -> new position will be (30 + 250) % 100 = 80
         2) then fill 20 with next 20, and finally wrap around and fill 80 for the last 80 
         """
-        buffer.size()
+
+        def _copy_to_buffer_from_i_to_j(i, j):
+            self.obs[     self._ptr : self._ptr + j - i] = buffer.obs[i:j]
+            self.actions[ self._ptr : self._ptr + j - i] = buffer.actions[i:j]
+            self.rewards[ self._ptr : self._ptr + j - i] = buffer.rewards[i:j]
+            self.dones[   self._ptr : self._ptr + j - i] = buffer.dones[i:j]
+            self.next_obs[self._ptr : self._ptr + j - i] = buffer.next_obs[i:j]
+
+        if (buffer.size() + self._size) <= self.max_size:
+            _copy_to_buffer_from_i_to_j(0, buffer.size())
+            self._ptr = (self._ptr + buffer.size()) % self.max_size
+            self._size += buffer.size()
+
+        elif (buffer.size() + self._size) > self.max_size:
+            skipping = buffer.size() - self.max_size
+            # update ptr at the point where ptr goes if we do all skipping additions
+            self._ptr = (self._size + skipping) % self.max_size
+            # replace the first half before wrapping around
+            size_before_wrap = self.max_size - self._ptr
+            _copy_to_buffer_from_i_to_j(skipping, skipping + size_before_wrap)
+            self._ptr = 0
+            _copy_to_buffer_from_i_to_j(skipping + size_before_wrap, buffer.size())
+            self._ptr = buffer.size() - (skipping + size_before_wrap)
+            self._size = self.max_size
 
     def size(self):
-        return self.size
+        return self._size
     
     def get_components(self):
+        return (self.obs[:self._size], self.actions[:self._size], self.rewards[:self._size], 
+                self.dones[:self._size], self.next_obs[:self._size])
+    
+    def shuffle(self):
         pass
-        # return obs, act, rew, don, next_obs
 
-    def sample(self, num_samples : int = 1):
-        pass
+    # def sample(self, num_samples : int = 1):
+    #     pass

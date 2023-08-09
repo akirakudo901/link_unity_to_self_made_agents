@@ -66,10 +66,12 @@ class TestSoftActorCritic_Policy(unittest.TestCase):
         jacobian_trace1 = torch.sum(jacobian_diagonals1, dim=2)
         # print("jacobian_trace1: ", jacobian_trace1, "jacobian_trace1.shape: ", jacobian_trace1.shape, "\n")
         expected1 = before1 - jacobian_trace1
-        # print("expected1: ", expected1, "expected1.shape: ", expected1.shape, "\n")
+        print("expected1: ", expected1, "expected1.shape: ", expected1.shape, "\n")
 
-        actual1 = SoftActorCritic.Policy._correct_for_squash(before=before1, actions=actions1)
-        # print("actual1: ", actual1, "actual1s.shape: ", actual1.shape, "\n")
+        pol = SoftActorCritic.Policy(observation_size=3, action_size=4, action_ranges=((-1., 1.),)*4)
+
+        actual1 = pol._correct_for_squash(before=before1, actions=actions1)
+        print("actual1: ", actual1, "actual1s.shape: ", actual1.shape, "\n")
         
         self.assertTrue(torch.equal(expected1, actual1))
 
@@ -230,9 +232,9 @@ class TestSoftActorCritic_Policy(unittest.TestCase):
 
         new_batch_obs, new_batch_actions, new_batch_rewards, new_batch_dones, new_batch_nextobs = SoftActorCritic._unzip_experiences(experiences)
         
-        print("new_batch_obs: ",new_batch_obs, "new_batch_actions: ", new_batch_actions, 
-              "new_batch_rewards: ", new_batch_rewards, "new_batch_dones: ", new_batch_dones, 
-              "new_batch_nextobs: ",new_batch_nextobs)
+        # print("new_batch_obs: ",new_batch_obs, "new_batch_actions: ", new_batch_actions, 
+        #       "new_batch_rewards: ", new_batch_rewards, "new_batch_dones: ", new_batch_dones, 
+        #       "new_batch_nextobs: ",new_batch_nextobs)
 
         testSAC.update(experiences)
         

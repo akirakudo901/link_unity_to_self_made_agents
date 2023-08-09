@@ -360,7 +360,7 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
                 # print("actions right after tanh: ", squashed_neg_one_to_one, "squashed_neg_one_to_one.shape: ", squashed_neg_one_to_one.shape)
                 t_device = squashed_neg_one_to_one.device
                 # print("action_multiplier: ", self.action_multiplier, "action_avgs: ", self.action_avgs)
-                return squashed_neg_one_to_one * self.action_multiplier.to(t_device) + self.action_avgs.to(t_device)
+                return squashed_neg_one_to_one * self.action_multiplier.to(t_device).detach() + self.action_avgs.to(t_device).detach()
 
             # we obtain the mean myu and sd sigma of the gaussian distribution
             stack_out = self.linear_relu_stack(obs)
@@ -435,7 +435,7 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
             # print("before: ", before, "before.shape: ", before.shape)
             # print("actions: ", actions, "actions.shape: ", actions.shape)
             multiplier = self.action_multiplier.to(actions.device)
-            jacobian_trace = torch.sum((multiplier * torch.log(1 - torch.tanh(actions)**2) ), dim=2)
+            jacobian_trace = torch.sum((multiplier * torch.log(1 - torch.tanh(actions).pow(2)) ), dim=2)
             # print("jacobian_trace: ", jacobian_trace, "jacobian_trace.shape: ", jacobian_trace.shape)
             # subtract it from before to yield after
             after = before - jacobian_trace
@@ -480,8 +480,7 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
         # two q-functions are used to approximate values during training
         self.qnet1 = SoftActorCritic.QNet(observation_size=observation_size, action_size=action_size).to(self.device)
         self.qnet2 = SoftActorCritic.QNet(observation_size=observation_size, action_size=action_size).to(self.device)
-        self.optim_qnet1 = optimizer(self.qnet1.parameters(), lr=q_net_learning_rate)
-        self.optim_qnet2 = optimizer(self.qnet2.parameters(), lr=q_net_learning_rate)
+        self.optim_qnet = optimizer(list(self.qnet1.parameters()) + list(self.qnet2.parameters()), lr=q_net_learning_rate)
         # two target networks are updated less (e.g. every 1000 steps) to compute targets for q-function update
         self.qnet1_tar = SoftActorCritic.QNet(observation_size=observation_size, action_size=action_size).to(self.device)
         self.qnet2_tar = SoftActorCritic.QNet(observation_size=observation_size, action_size=action_size).to(self.device)
@@ -542,19 +541,19 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
                 batch_start = i*POL_EVAL_BATCH_SIZE
                 batch_end = min((i+1)*POL_EVAL_BATCH_SIZE, experiences.size())
 
-                batch_obs = observations[batch_start : batch_end]#.detach()
+                batch_obs = observations[batch_start : batch_end].detach()
                 # print("batch_obs[:10]: ", batch_obs[:10], "\n")
                 # print("batch_obs.shape: ", batch_obs.shape, "\n")
-                batch_actions = actions[batch_start : batch_end]#.detach()
+                batch_actions = actions[batch_start : batch_end].detach()
                 # print("batch_actions[:10]: ", batch_actions[:10], "\n")
                 # print("batch_actions.shape: ", batch_actions.shape, "\n")
-                batch_rewards = rewards[batch_start : batch_end]#.detach()
+                batch_rewards = rewards[batch_start : batch_end].detach()
                 # print("batch_rewards[:10]: ", batch_rewards[:10], "\n")
                 # print("batch_rewards.shape: ", batch_rewards.shape, "\n")
-                batch_dones = dones[batch_start : batch_end]#.detach()
+                batch_dones = dones[batch_start : batch_end].detach()
                 # print("batch_dones[:10]: ", batch_dones[:10], "\n")
                 # print("batch_dones.shape: ", batch_dones.shape, "\n")
-                batch_nextobs = next_observations[batch_start : batch_end]#.detach()
+                batch_nextobs = next_observations[batch_start : batch_end].detach()
                 # print("batch_nextobs[:10]: ", batchbatch_nextobs_dones[:10], "\n")
                 # print("batch_nextobs.shape: ", batch_nextobs.shape, "\n")
 
@@ -581,15 +580,12 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
                 criterion = nn.MSELoss()
                 loss1 = criterion(predictions1, targets)
                 loss2 = criterion(predictions2, targets)
+                total_loss = loss1 + loss2
                 # print("loss1: ", loss1, "loss1.shape: ", loss1.shape)
                 # backpropagate that loss to update q_nets
-                self.optim_qnet1.zero_grad()
-                loss1.backward(retain_graph=True)
-                self.optim_qnet1.step()
-                
-                self.optim_qnet2.zero_grad()
-                loss2.backward()
-                self.optim_qnet2.step()
+                self.optim_qnet.zero_grad()
+                total_loss.backward()
+                self.optim_qnet.step()
                 
                 # increment the update counter and update target networks every N gradient steps
                 self.qnet_update_counter += 1
@@ -625,7 +621,7 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
                 batch_start = i*POL_IMP_BATCH_SIZE
                 batch_end = min((i+1)*POL_IMP_BATCH_SIZE, experiences.size())
 
-                batch_obs = observations[batch_start : batch_end]#.detach()
+                batch_obs = observations[batch_start : batch_end].detach()
                 # print(batch_obs, "\n")
                 
                 # batch_action_samples' shape is [batch_size, POL_IMP_FRESH_ACTION_SAMPLE_SIZE, action_size]
