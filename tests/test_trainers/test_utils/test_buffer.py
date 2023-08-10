@@ -119,6 +119,31 @@ class TestListBuffer(unittest.TestCase):
         self.assertTrue(np.array_equal(rew, expected_rew))
         self.assertTrue(np.array_equal(don, expected_don))
         self.assertTrue(np.array_equal(next_obs, expected_next_obs))
+    
+    def test_sample_random_experiences(self):
+        # append 3 experiences - which fills self.buffer
+        self.buffer.append_experience(*self.exp1)
+        self.buffer.append_experience(*self.exp2)
+        self.buffer.append_experience(*self.exp3)
+        # sample 1 random experience and see that it differs based on seeds
+        obs1, act1, rew1, don1, nob1 = self.buffer.sample_random_experiences(num_samples=1, seed=123)
+        obs2,    _,    _,    _,    _ = self.buffer.sample_random_experiences(num_samples=1, seed=246)
+        obs3,    _,    _,    _,    _ = self.buffer.sample_random_experiences(num_samples=1, seed=369)
+        self.assertEqual(obs1.shape[0], 1)
+        self.assertEqual(act1.shape[0], 1)
+        self.assertEqual(rew1.shape[0], 1)
+        self.assertEqual(don1.shape[0], 1)
+        self.assertEqual(nob1.shape[0], 1)
+        self.assertTrue((not np.array_equal(obs1, obs2)) or 
+                        (not np.array_equal(obs1, obs3)) or 
+                        (not np.array_equal(obs2, obs3)))
+        # see that 2 random experiences are indeed generated
+        obs4, _, _, _, _ = self.buffer.sample_random_experiences(num_samples=2, seed=123)
+        self.assertEqual(obs4.shape[0], 2)
+        # see that if num_samples > buffer size, we get buffer size experiences
+        self.assertEqual(self.buffer.size(), 3)
+        obs5, _, _, _, _ = self.buffer.sample_random_experiences(num_samples=10, seed=123)
+        self.assertEqual(obs5.shape[0], 3)
         
 
 class TestNdArrayBuffer(TestListBuffer):
@@ -234,6 +259,7 @@ class TestNdArrayBuffer(TestListBuffer):
         self.assertTrue(self.exp4.is_equal(get_exp_at_i(0)))
         self.assertTrue(self.exp1.is_equal(get_exp_at_i(1)))
         self.assertTrue(self.exp3.is_equal(get_exp_at_i(2)))
+
 
 if __name__ == "__main__":
     unittest.main()

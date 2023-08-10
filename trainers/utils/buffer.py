@@ -7,6 +7,7 @@ NdArrayBuffer should be faster than ListBuffer and thus should be used.
 
 from abc import ABC, abstractmethod
 import random
+from typing import List
 
 import numpy as np
 
@@ -39,6 +40,17 @@ class Buffer(ABC):
     def size(self):
         """
         Returns the size of the buffer.
+        """
+
+    @abstractmethod
+    def sample_random_experiences(self, num_samples : int, seed : int=123):
+        """
+        Returns num_samples random experiences taken from the buffer, returning
+        numpy arrays for corresponding components.
+        Takes in a seed for reproducibility.
+        :param int num_samples: The number of samples we pick. The returned number of
+        samples is the minimum of this and the size of the buffer.
+        :param int seed: The seed value useful for reproducible sampling.
         """
     
     @abstractmethod
@@ -100,13 +112,32 @@ class ListBuffer(Buffer):
     def size(self):
         return len(self._list)
     
+    def sample_random_experiences(self, num_samples: int, seed: int = 123):
+        rng = np.random.default_rng(seed=seed)
+        num_samples = min(num_samples, self.size()) #adjust num_samples to not exceed buffer size
+        #choose the indices
+        indices = rng.choice(range(self.size()), size=num_samples, replace=False)
+        # use _get_components_by_index to get the components and return them
+        obs, act, rew, don, nob = self._get_components_by_index(indices=indices.tolist())
+        return (obs, act, rew, don, nob)
+    
     def get_components(self):
-        obs, act, rew, don, next_obs = (np.empty(shape=[self.size()] + list(self.obs_shape), dtype=np.float32), 
-                                        np.empty(shape=[self.size()] + list(self.act_shape), dtype=np.float32),
-                                        np.empty(shape=[self.size()],                        dtype=np.float32),
-                                        np.empty(shape=[self.size()],                        dtype=np.bool8  ),
-                                        np.empty(shape=[self.size()] + list(self.obs_shape), dtype=np.float32))
-        for i, exp in enumerate(self._list):
+        obs, act, rew, don, next_obs = self._get_components_by_index(indices=list(range(self.size())))
+        return obs, act, rew, don, next_obs
+    
+    def _get_components_by_index(self, indices : List):
+        """
+        Returns the individual components of experiences chosen using 
+        indices from self._list.
+        :param List indices: The indices for experiences we pick out.
+        """
+        obs, act, rew, don, next_obs = (np.empty(shape=[len(indices)] + list(self.obs_shape), dtype=np.float32), 
+                                        np.empty(shape=[len(indices)] + list(self.act_shape), dtype=np.float32),
+                                        np.empty(shape=[len(indices)],                        dtype=np.float32),
+                                        np.empty(shape=[len(indices)],                        dtype=np.bool8  ),
+                                        np.empty(shape=[len(indices)] + list(self.obs_shape), dtype=np.float32))
+        for i, idx in enumerate(indices):
+            exp = self._list[idx]
             obs[i], act[i], rew[i], don[i], next_obs[i] = (exp.obs,
                                                            exp.action,
                                                            exp.reward,
@@ -142,8 +173,8 @@ class NdArrayBuffer(Buffer):
         """
         self.obs      = np.empty(shape=[max_size] + list(obs_shape), dtype=np.float32)
         self.actions  = np.empty(shape=[max_size] + list(act_shape), dtype=np.float32)
-        self.rewards  = np.empty(shape=[max_size],             dtype=np.float32)
-        self.dones    = np.empty(shape=[max_size],             dtype=np.float32)
+        self.rewards  = np.empty(shape=[max_size],                   dtype=np.float32)
+        self.dones    = np.empty(shape=[max_size],                   dtype=np.float32)
         self.next_obs = np.empty(shape=[max_size] + list(obs_shape), dtype=np.float32)
         
         self._ptr, self._size, self.max_size = 0, 0, max_size
@@ -223,14 +254,40 @@ class NdArrayBuffer(Buffer):
             self._size = self.max_size
 
     def size(self):
+        """
+        Returns the size of the buffer.
+        """
         return self._size
     
     def get_components(self):
+        """
+        Returns the individual components of the buffer as numpy arrays in tuple:
+        observation, action, reward, done, next observation.
+        """
         return (self.obs[:self._size], self.actions[:self._size], self.rewards[:self._size], 
                 self.dones[:self._size], self.next_obs[:self._size])
     
+    def sample_random_experiences(self, num_samples : int, seed : int=123):
+        """
+        Returns num_samples random experiences taken from the buffer, returning
+        numpy arrays for corresponding components.
+        Takes in a seed for reproducibility.
+        :param int num_samples: The number of samples we pick. The returned number of
+        samples is the minimum of this and the size of the buffer.
+        :param int seed: The seed value useful for reproducible sampling.
+        """
+        rng = np.random.default_rng(seed=seed)
+        num_samples = min(num_samples, self._size) #adjust num_samples to not exceed buffer size
+        #choose the indices
+        indices = rng.choice(range(self._size), size=num_samples, replace=False)
+        # returns a copy as a result of fancy indexing as of right now
+        return (self.obs[indices], self.actions[indices], self.rewards[indices], 
+                self.dones[indices], self.next_obs[indices])
+    
     def shuffle(self):
-        pass
-
-    # def sample(self, num_samples : int = 1):
-    #     pass
+        """
+        Shuffles the buffer. As the only function that gets access based on indexing is
+        get_components, this shall not be used as part of NdArrayBuffer. 
+        """
+        raise Exception("Shuffling of this buffer class is not supported; please use\
+                        sample_random_experiences in order to get experiences from a shuffled buffer.")
