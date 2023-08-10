@@ -160,8 +160,12 @@ from trainers.unityenv_base_trainer import Buffer, Experience
 #     action = uniform_random_sampling(None, None)
 #     print(action, "\n")
 
-actions = torch.tensor([3.])
-a1 = torch.tanh(actions)**2
-a2 = torch.tanh(actions).pow(2)
-print(a1, a2)
+# actions = torch.tensor([3.])
+# a1 = torch.tanh(actions)**2
+# a2 = torch.tanh(actions).pow(2)
+# print(a1, a2)
+
+# action_ranges = ((-1., 1.),)*4
+# action_multiplier = [(range[1] - range[0]) / 2 for range in action_ranges]
+# print(action_ranges, action_multiplier)
                 

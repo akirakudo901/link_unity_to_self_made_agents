@@ -89,33 +89,90 @@ import torch
 # b = B(attA=1, attB="attB")
 # print(list(*b))
 
-import numpy as np
-from timeit import default_timer as timer
+# import numpy as np
+# from timeit import default_timer as timer
 
-n1 = np.random.rand(1000, 1000)
-n2 = np.random.rand(1000, 800)
-n1_ = np.random.rand(1000, 1000)
-n2_ = np.random.rand(1000, 800)
+# n1 = np.random.rand(1000, 1000)
+# n2 = np.random.rand(1000, 800)
+# n1_ = np.random.rand(1000, 1000)
+# n2_ = np.random.rand(1000, 800)
 
-# print("initial n1, n2:", n1, "\n", n2 )
+# # print("initial n1, n2:", n1, "\n", n2 )
 
-start_index = timer()
-n1[:, :800] = n2[:,:]
-end_index = timer()
+# start_index = timer()
+# n1[:, :800] = n2[:,:]
+# end_index = timer()
 
-# print("final n1, n2:", n1,"\n", n2 )
+# # print("final n1, n2:", n1,"\n", n2 )
 
-print("index :", end_index - start_index)
+# print("index :", end_index - start_index)
 
-# print("initial n1_, n2_:", n1_, "\n", n2_)
+# # print("initial n1_, n2_:", n1_, "\n", n2_)
 
-start_for = timer()
-for i in range(800):
-    n1_[:, i] = n2_[:, i]
-end_for = timer()
+# start_for = timer()
+# for i in range(800):
+#     n1_[:, i] = n2_[:, i]
+# end_for = timer()
 
-# print("final n1_, n2_:", n1_, "\n", n2_)
+# # print("final n1_, n2_:", n1_, "\n", n2_)
 
-print("for :", end_for - start_for)
+# print("for :", end_for - start_for)
 
+
+import math
+
+from torch.distributions.normal import Normal
+from numbers import Real
+
+# myus = torch.tensor([0, 0.1, 0.2, 0.3], dtype=torch.float32)
+# sigmas = torch.tensor([1, 0.1, 0.15, 0.20], dtype=torch.float32)
+# sigmas = torch.tensor([1, 2, 3, 4], dtype=torch.float32)
+myus = torch.tensor([0], dtype=torch.float32)
+sigmas = torch.tensor([0.15], dtype=torch.float32)
+
+def own_log_prob(value, scale, loc):
+    # if self._validate_args:
+    #     self._validate_sample(value)
+    # compute the variance
+    var = (scale ** 2)
+    print(f"var is {var}.")
+    log_scale = math.log(scale) if isinstance(scale, Real) else scale.log()
+    print(f"log_scale is {log_scale}.")
+    comp1, comp2, comp3, comp4 = (value - loc) ** 2, 2 * var, log_scale, math.log(math.sqrt(2 * math.pi))
+    print(f"comp1 is {comp1}.")
+    print(f"comp2 is {comp2}.")
+    print(f"comp3 is {comp3}.")
+    print(f"comp4 is {comp4}.")
+    return -(comp1) / (comp2) - comp3 - comp4
+    # return -((value - loc) ** 2) / (2 * var) - log_scale - math.log(math.sqrt(2 * math.pi))
+
+norm = Normal(myus, sigmas)
+rs = norm.rsample(sample_shape=(3,))
+print("rs: ", rs, "\n", "shape: ", rs.shape)
+log_probs = norm.log_prob(rs)
+print("log_probs: ", log_probs, "\n", "shape: ", log_probs.shape)
+own_log_probs = own_log_prob(rs, scale=sigmas, loc=myus)
+print("own_log_probs: ", own_log_probs, "\n", "shape: ", own_log_probs.shape)
+
+
+"""
+Log probabiliities - problem where log_probs goes to infinity and thus gradient to -inf, and qnet to nan
+sigmas : [0.1172, 0.0067, 0.0071, 0.0067]
+myus : [ 4.4031, -8.8166,  6.4839,  9.0240]
+action : [[ 4.3591e+00, -8.8212e+00,  6.4904e+00,  9.0213e+00]]
+pure_log_proabbilitie : [[ 1.1544,  3.8494,  3.6093,  4.0017]]
+before_correction : [12.6148]
+log_probs :  [inf]
+"""
+action = torch.tensor([[[ 4.3591e+00, -8.8212e+00,  6.4904e+00,  9.0213e+00],],]) #btch_sz, smpl_sz, actn_sz
+before = torch.tensor([[12.6148],]) #btch_sz, smpl_sz
+
+multiplier = torch.tensor([1, 1, 1, 1])
+oneMinusTanHPow = torch.log(1 - torch.tanh(action).pow(2))
+print(f"oneMinusTanHPow is {oneMinusTanHPow}.")
+# jacobian_trace = torch.sum((multiplier * torch.log(1 - torch.tanh(action).pow(2)) ), dim=2)
+jacobian_trace = torch.sum((multiplier *  oneMinusTanHPow), dim=2)
+print(f"jacobian_trace is {jacobian_trace}.")
+after = before - jacobian_trace
+print(f"after is {after}.")
 

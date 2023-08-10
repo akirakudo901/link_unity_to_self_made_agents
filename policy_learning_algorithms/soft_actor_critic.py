@@ -208,7 +208,7 @@ import torch.optim as optim
 from torch.distributions.normal import Normal
 
 from policy_learning_algorithms.policy_learning_algorithm import OffPolicyLearningAlgorithm
-from trainers.gym_base_trainer import Buffer, ListBuffer, NdArrayBuffer
+from trainers.gym_base_trainer import Buffer
 
 class SoftActorCritic(OffPolicyLearningAlgorithm):
 
@@ -400,6 +400,18 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
             log_probs = self._correct_for_squash(
                 before_correction, actions
                 )
+            
+            # TODO remove
+            if log_probs.isinf().any():
+                print("Inside policy's foward!")
+                print(f"myus is {myus}\n.")
+                print(f"sigmas is {sigmas}\n.")
+                print(f"actions is {actions}\n.")
+                print(f"squashed is {squashed}\n.")
+                print(f"pure_log_probabilities is {pure_log_probabilities}\n.")
+                print(f"before_correction is {before_correction}\n.")
+                print(f"log_probs is {log_probs}\n.")
+                print("Done with policy's foward!")
             
             return squashed, log_probs
         
@@ -597,6 +609,10 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
                     print("qnet targets[:10]: ", targets[:10], "\nqnet targets.shape: ", targets.shape, "\n")
                     print("qnet predictions1[:10]: ", predictions1[:10], "\nqnet predictions1.shape: ", predictions1.shape, "\n")
                     print("qnet loss1: ", loss1, "\nqnet loss1.shape: ", loss1.shape, "\n")
+                    if targets.isnan().any():
+                        raise Exception("Target went to NaN!")
+                    elif predictions1.isnan().any():
+                        raise Exception("Predictions went to NaN!")
                 
                 # finally break out of loop if the number of gradient steps exceeds NUM_STEPS
                 policy_evaluation_gradient_step_count += 1
@@ -663,6 +679,10 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
                     print("policy target_qval[:10]: ", target_qval[:10], "\npolicy target_qval.shape: ", target_qval.shape, "\n")
                     print("policy_val[:10]: ", policy_val[:10], "\npolicy_val.shape: ", policy_val.shape, "\n")
                     print("policy loss: ", loss, "\npolicy loss.shape: ", loss.shape, "\n")
+                    if target_qval.isnan().any():
+                        raise Exception("Target_qval went to NaN!")
+                    elif policy_val.isnan().any():
+                        raise Exception("Polivy_val went to NaN!")
 
                 # END TOREMOVE
 
@@ -693,7 +713,7 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
         exp_qval_minimum = torch.exp(qval_minimum)
         # print("exp_qval_minimum: ", exp_qval_minimum, "\n", "exp_qval_minimum.shape: ", exp_qval_minimum.shape, "\n")
         # the mean of those predictions of the shape [batch]
-        mean_exp_qval = torch.mean(exp_qval_minimum, dim=1, dtype=torch.float32)
+        mean_exp_qval = torch.mean(exp_qval_minimum, dim=1, dtype=SoftActorCritic.NUMBER_DTYPE)
         # print("mean_exp_qval: ", mean_exp_qval, "\n", "mean_exp_qval.shape: ", mean_exp_qval.shape, "\n")
         return mean_exp_qval
 
@@ -736,6 +756,20 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
                 )
         # print("targets: ", targets, "\n")
         # print("targets.shape: ", targets.shape, "\n")
+
+        # TODO remove
+        if targets.isinf().any():
+            print("Inside _compute_target!")
+            # print(f"batch_nextobs is: {batch_nextobs}.\n")
+            # print(f"batch_action_samples is: {batch_action_samples}.\n")
+            print(f"batch_log_probs is: {batch_log_probs}.\n")
+            # print(f"qnet1_tar_preds is: {qnet1_tar_preds}.\n")
+            # print(f"qnet2_tar_preds is: {qnet2_tar_preds}.\n")
+            # print(f"minimum is: {minimum}.\n")
+            # print(f"mean_of_minimum is: {mean_of_minimum}.\n")
+            # print(f"mean_of_log is: {mean_of_log}.\n")
+            # print(f"targets is: {targets}.\n")
+            print("Done with _compute_target!")
 
         return targets
     

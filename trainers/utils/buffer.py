@@ -202,15 +202,18 @@ class NdArrayBuffer(Buffer):
             self.dones[   self._ptr : self._ptr + j - i] = buffer.dones[i:j]
             self.next_obs[self._ptr : self._ptr + j - i] = buffer.next_obs[i:j]
 
-        if (buffer.size() + self._size) <= self.max_size:
+        if (buffer.size() + self._ptr) <= self.max_size:
             _copy_to_buffer_from_i_to_j(0, buffer.size())
             self._ptr = (self._ptr + buffer.size()) % self.max_size
-            self._size += buffer.size()
+            self._size = min(self._size + buffer.size(), self.max_size)
 
-        elif (buffer.size() + self._size) > self.max_size:
-            skipping = buffer.size() - self.max_size
+        elif (buffer.size() + self._ptr) > self.max_size:
+            if buffer.size() <= self.max_size: # if addign > self.buffer.max_size worth exps
+                skipping = 0 # we skip no entry from buffer in that case
+            else: #otherwise, we can skip everything that is not within the last self.max_size in buffer
+                skipping = buffer.size() - self.max_size
             # update ptr at the point where ptr goes if we do all skipping additions
-            self._ptr = (self._size + skipping) % self.max_size
+            self._ptr = (self._ptr + skipping) % self.max_size
             # replace the first half before wrapping around
             size_before_wrap = self.max_size - self._ptr
             _copy_to_buffer_from_i_to_j(skipping, skipping + size_before_wrap)
