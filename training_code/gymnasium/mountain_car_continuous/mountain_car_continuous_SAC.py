@@ -26,14 +26,14 @@ observation_size = env.observation_space.shape[0]
 action_size = env.action_space.shape[0]
 action_ranges = tuple([(env.action_space.low[i], env.action_space.high[i]) for i in range(action_size)])
 
-print(f"The environment has observation of size: {observation_size} and \
-      action of size: {action_size} with action ranges of: {action_ranges}.")
+print(f"The environment has observation of size: {observation_size} and " + 
+      f"action of size: {action_size} with action ranges of: {action_ranges}.")
 
 learning_algorithm = SoftActorCritic(
     q_net_learning_rate=3e-4, 
     policy_learning_rate=1e-3, 
     discount=0.99, 
-    temperature=0.2,
+    temperature=0.025,
     observation_size=observation_size,
     action_size=action_size, 
     action_ranges=action_ranges,

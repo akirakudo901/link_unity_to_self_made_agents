@@ -8,6 +8,7 @@ by making a trainer which inherits from it.
 """
 
 import logging
+from timeit import default_timer as timer
 from typing import List, Tuple
 import traceback
 
@@ -190,6 +191,8 @@ class GymOffPolicyBaseTrainer:
         :param str task_name: The name of the task to log when saving after training.
         :param bool render_evaluation: Whether to render the environment when evaluating.
         """
+
+        start_time = timer()
         
         try:
             experiences : Buffer = GymOffPolicyBaseTrainer.BUFFER_IMPLEMENTATION(max_size=max_buffer_size, 
@@ -242,10 +245,14 @@ class GymOffPolicyBaseTrainer:
         except Exception:
             logging.error(traceback.format_exc())
         finally:
+            end_time = timer()
+
             print("Closing envs...")
             self.env.close()
             self.env_eval.close()
             print("Successfully closed envs!")
+
+            print(f"Execution time: {end_time - start_time} sec.") #float fractional seconds?
 
             # Show the training graph
             try:
