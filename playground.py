@@ -180,20 +180,34 @@ import torch
 
 ##########################################
 # TRYING OUT RANDOM GENERATORS
-import numpy as np
+# import numpy as np
 
-rng = np.random.default_rng(seed=None)
-t1 = torch.tensor(range(10))
-t2 = torch.tensor(range(10, 20))
-t3 = torch.tensor(range(20, 30))
+# rng = np.random.default_rng(seed=None)
+# t1 = torch.tensor(range(10))
+# t2 = torch.tensor(range(10, 20))
+# t3 = torch.tensor(range(20, 30))
 
-# print(t1, t2, t3)
+# # print(t1, t2, t3)
 
-indices = rng.choice(range(len(t1)), size=3, replace=False)
-t1_choice = t1[indices]
-t2_choice = t2[indices]
-t3_choice = t3[indices]
+# indices = rng.choice(range(len(t1)), size=3, replace=False)
+# t1_choice = t1[indices]
+# t2_choice = t2[indices]
+# t3_choice = t3[indices]
 
-print(indices)
+# print(indices)
 
-print(t1_choice, t2_choice, t3_choice)
+# print(t1_choice, t2_choice, t3_choice)
+
+#############################################
+# DOUBLE CHECKING HOW SQUEEZING WORKS
+
+t1 = torch.tensor([[[-0.0201]], [[-0.1084]]])
+single_sample = t1[:, 0, :]
+squeeze_all = torch.squeeze(single_sample)
+squeeze_zero = torch.squeeze(single_sample, dim=0)
+squeeze_one  = torch.squeeze(single_sample, dim=1)
+# squeeze_two  = torch.squeeze(single_sample, dim=2)
+print(f"single_sample: {single_sample}.")
+print(f"squeeze_all: {squeeze_all}\n squeeze_zero: {squeeze_zero}\n \
+      squeeze_one: {squeeze_one}\n squeeze_two: {squeeze_one}.")
+print(f"single_sample.shape: {single_sample.shape}")

@@ -1,2 +1,3 @@
 # from walker_trial_of_different_algorithms import walker_sac_training
-from training.bipedal_walker import bipedal_walker_SAC
+# from training.bipedal_walker import bipedal_walker_SAC
+from training.mountain_car_continuous import mountain_car_continuous_SAC

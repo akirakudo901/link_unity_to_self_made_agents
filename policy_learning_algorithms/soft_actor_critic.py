@@ -881,13 +881,13 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
     def _compute_exponentiated_qval(self, batch_obs, batch_action_samples):
         # predicted q_val for each qnet of the shape [batch, num_samples]
         qnet1_val = torch.cat([
-                                    self.qnet1(batch_obs, torch.squeeze(batch_action_samples[:, i, :], dim=1))
+                                    self.qnet1(batch_obs, torch.squeeze(batch_action_samples[:, i, :], dim=0))
                                     for i in range(batch_action_samples.shape[1])
                                     ],
                                     dim=1
                                 )
         qnet2_val = torch.cat([
-                                    self.qnet2(batch_obs, torch.squeeze(batch_action_samples[:, i, :], dim=1))
+                                    self.qnet2(batch_obs, torch.squeeze(batch_action_samples[:, i, :], dim=0))
                                     for i in range(batch_action_samples.shape[1])
                                     ],
                                     dim=1
@@ -906,7 +906,7 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
     def _compute_qnet_target(self, batch_rewards, batch_dones, batch_nextobs, batch_action_samples, batch_log_probs):
         qnet1_tar_preds = torch.cat(
                                 [
-                                    self.qnet1_tar(batch_nextobs, torch.squeeze(batch_action_samples[:, i, :], dim=1))
+                                    self.qnet1_tar(batch_nextobs, torch.squeeze(batch_action_samples[:, i, :], dim=0))
                                     for i in range(batch_action_samples.shape[1])
                                 ], 
                                 dim=1
@@ -914,7 +914,7 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
         # print("qnet1_tar_preds: ", qnet1_tar_preds, "\n", "qnet1_tar_preds.shape: ", qnet1_tar_preds.shape, "\n")
         qnet2_tar_preds = torch.cat(
                                 [
-                                    self.qnet2_tar(batch_nextobs, torch.squeeze(batch_action_samples[:, i, :], dim=1))
+                                    self.qnet2_tar(batch_nextobs, torch.squeeze(batch_action_samples[:, i, :], dim=0))
                                     for i in range(batch_action_samples.shape[1])
                                 ], 
                                 dim=1

@@ -88,7 +88,7 @@ class GymOffPolicyBaseTrainer:
             self.last_observation, _ = self.env.reset()
             self.last_action = exploration_function(
                 torch.squeeze( #adjust, as output from learning_algo always has a batch dimension
-                    self.learning_algorithm(np.expand_dims(self.last_observation, 0)).cpu().detach()
+                    self.learning_algorithm(np.expand_dims(self.last_observation, 0)).cpu().detach(), dim=0
                 ).numpy(), 
                 self.env
             )
@@ -113,7 +113,7 @@ class GymOffPolicyBaseTrainer:
             
             best_action = exploration_function(
                 torch.squeeze( #adjust, as output from learning_algo always has a batch dimension
-                    self.learning_algorithm(np.expand_dims(self.last_observation, 0)).cpu().detach()
+                    self.learning_algorithm(np.expand_dims(self.last_observation, 0)).cpu().detach(), dim=0
                 ).numpy(),
                 self.env
             )
@@ -282,7 +282,7 @@ class GymOffPolicyBaseTrainer:
 
                 # get optimal action by agent
                 a = torch.squeeze( #adjust, as output from learning_algo always has a batch dimension
-                    self.learning_algorithm(np.expand_dims(s, 0)).cpu().detach()
+                    self.learning_algorithm(np.expand_dims(s, 0)).cpu().detach(), dim=0
                 ).numpy()
 
                 # update env accordingly
