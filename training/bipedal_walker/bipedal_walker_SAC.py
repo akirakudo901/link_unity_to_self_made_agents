@@ -36,7 +36,7 @@ learning_algorithm = SoftActorCritic(
     observation_size=observation_size,
     action_size=action_size, 
     action_ranges=action_ranges,
-    update_qnet_every_N_gradient_steps=1,
+    update_qnet_every_N_gradient_steps=1000,
     device=device
     # leave the optimizer as the default = Adam
     )
@@ -46,9 +46,9 @@ trainer = GymOffPolicyBaseTrainer(env, learning_algorithm)
 # The number of training steps that will be performed
 NUM_TRAINING_STEPS = 10000
 # The number of experiences to be initlally collected before doing any training
-NUM_INIT_EXP = 10
+NUM_INIT_EXP = 3000
 # The number of experiences to collect per training step
-NUM_NEW_EXP = 0
+NUM_NEW_EXP = 1
 # The maximum size of the Buffer
 BUFFER_SIZE = 10**4
 

@@ -43,14 +43,14 @@ class Buffer(ABC):
         """
 
     @abstractmethod
-    def sample_random_experiences(self, num_samples : int, seed : int=123):
+    def sample_random_experiences(self, num_samples : int, seed : int=None):
         """
         Returns num_samples random experiences taken from the buffer, returning
         numpy arrays for corresponding components.
         Takes in a seed for reproducibility.
         :param int num_samples: The number of samples we pick. The returned number of
         samples is the minimum of this and the size of the buffer.
-        :param int seed: The seed value useful for reproducible sampling.
+        :param int seed: The seed value useful for reproducible sampling. Not applied if None.
         """
     
     @abstractmethod
@@ -112,8 +112,8 @@ class ListBuffer(Buffer):
     def size(self):
         return len(self._list)
     
-    def sample_random_experiences(self, num_samples: int, seed: int = 123):
-        rng = np.random.default_rng(seed=seed)
+    def sample_random_experiences(self, num_samples: int, seed: int = None):
+        rng = np.random.default_rng(seed=None)
         num_samples = min(num_samples, self.size()) #adjust num_samples to not exceed buffer size
         #choose the indices
         indices = rng.choice(range(self.size()), size=num_samples, replace=False)
@@ -267,14 +267,14 @@ class NdArrayBuffer(Buffer):
         return (self.obs[:self._size], self.actions[:self._size], self.rewards[:self._size], 
                 self.dones[:self._size], self.next_obs[:self._size])
     
-    def sample_random_experiences(self, num_samples : int, seed : int=123):
+    def sample_random_experiences(self, num_samples : int, seed : int=None):
         """
         Returns num_samples random experiences taken from the buffer, returning
         numpy arrays for corresponding components.
         Takes in a seed for reproducibility.
         :param int num_samples: The number of samples we pick. The returned number of
         samples is the minimum of this and the size of the buffer.
-        :param int seed: The seed value useful for reproducible sampling.
+        :param int seed: The seed value useful for reproducible sampling. Not applied if None.
         """
         rng = np.random.default_rng(seed=seed)
         num_samples = min(num_samples, self._size) #adjust num_samples to not exceed buffer size

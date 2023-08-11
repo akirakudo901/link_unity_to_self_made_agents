@@ -182,7 +182,7 @@ import torch
 # TRYING OUT RANDOM GENERATORS
 import numpy as np
 
-rng = np.random.default_rng(seed=123)
+rng = np.random.default_rng(seed=None)
 t1 = torch.tensor(range(10))
 t2 = torch.tensor(range(10, 20))
 t3 = torch.tensor(range(20, 30))

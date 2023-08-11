@@ -402,16 +402,16 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
                 )
             
             # TODO remove
-            if log_probs.isinf().any():
-                print("Inside policy's foward!")
-                print(f"myus is {myus}\n.")
-                print(f"sigmas is {sigmas}\n.")
-                print(f"actions is {actions}\n.")
-                print(f"squashed is {squashed}\n.")
-                print(f"pure_log_probabilities is {pure_log_probabilities}\n.")
-                print(f"before_correction is {before_correction}\n.")
-                print(f"log_probs is {log_probs}\n.")
-                print("Done with policy's foward!")
+            # if log_probs.isinf().any():
+            #     print("Inside policy's forward!")
+            #     print(f"myus is {myus}\n.")
+            #     print(f"sigmas is {sigmas}\n.")
+            #     print(f"actions is {actions}\n.")
+            #     print(f"squashed is {squashed}\n.")
+            #     print(f"pure_log_probabilities is {pure_log_probabilities}\n.")
+            #     print(f"before_correction is {before_correction}\n.")
+            #     print(f"log_probs is {log_probs}\n.")
+            #     print("Done with policy's forward!")
             
             return squashed, log_probs
         
@@ -515,7 +515,7 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
         return self.get_optimal_action(state)
       
     # def old_update(self, experiences : Buffer):
-    #     # "experiences" is a list of experiences: (obs, action, reward, done, next_obs)
+    #     # "experiences" is of the form: (obs, action, reward, done, next_obs)
     #     NUM_EVAL_STEPS = 1
 
     #     POLICY_EVAL_NUM_EPOCHS = 1
@@ -692,8 +692,8 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
     #         # also break out of outer loop
     #         if policy_improvement_gradient_step_count >= NUM_IMP_STEPS: break 
     
-    def update(self, experiences : Buffer):
-        # "experiences" is a list of experiences: (obs, action, reward, done, next_obs)
+    def update(self, experiences : Buffer, seed=None):
+        # "experiences" is of the form: (obs, action, reward, done, next_obs)
         NUM_EVAL_STEPS = 1
 
         POLICY_EVAL_NUM_EPOCHS = 1
@@ -706,8 +706,10 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
         POL_IMP_BATCH_SIZE = 1028
         POL_IMP_FRESH_ACTION_SAMPLE_SIZE = 1
 
-        experiences.shuffle()
-        observations, actions, rewards, dones, next_observations = SoftActorCritic._unzip_experiences(experiences, device=self.device)
+        observations, actions, rewards, dones, next_observations = SoftActorCritic._sample_experiences(
+            experiences=experiences, num_samples=POLICY_EVAL_NUM_EPOCHS * POL_EVAL_BATCH_SIZE, 
+            device=self.device, seed=seed
+            )
         # print("observations.shape: ", observations.shape)
         # print("actions.shape: ", actions.shape)
         # print("rewards.shape: ", rewards.shape)
@@ -803,6 +805,12 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
         # at this point, the q-network weights are adjusted to reflect the q-value of
         # the current policy. We just have to take a gradient step with respect to the  
         # distance between this q-value and the current policy
+
+        new_seed = ((seed - 1)*seed) % (seed + 1) if seed is not None else None
+        observations, actions, rewards, dones, next_observations = SoftActorCritic._sample_experiences(
+            experiences=experiences, num_samples=POLICY_IMP_NUM_EPOCHS * POL_IMP_BATCH_SIZE, 
+            device=self.device, seed=new_seed
+            )
         
         # in order to estimate the gradient, we again sample some actions at this point in time.
         # TODO COULD WE USE ACTIONS SAMPLED BEFORE WHICH WERE USED FOR Q-NETWORK UPDATE? NOT SURE
@@ -936,18 +944,18 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
         # print("targets.shape: ", targets.shape, "\n")
 
         # TODO remove
-        if targets.isinf().any():
-            print("Inside _compute_target!")
-            # print(f"batch_nextobs is: {batch_nextobs}.\n")
-            # print(f"batch_action_samples is: {batch_action_samples}.\n")
-            print(f"batch_log_probs is: {batch_log_probs}.\n")
-            # print(f"qnet1_tar_preds is: {qnet1_tar_preds}.\n")
-            # print(f"qnet2_tar_preds is: {qnet2_tar_preds}.\n")
-            # print(f"minimum is: {minimum}.\n")
-            # print(f"mean_of_minimum is: {mean_of_minimum}.\n")
-            # print(f"mean_of_log is: {mean_of_log}.\n")
-            # print(f"targets is: {targets}.\n")
-            print("Done with _compute_target!")
+        # if targets.isinf().any():
+        #     print("Inside _compute_target!")
+        #     # print(f"batch_nextobs is: {batch_nextobs}.\n")
+        #     # print(f"batch_action_samples is: {batch_action_samples}.\n")
+        #     print(f"batch_log_probs is: {batch_log_probs}.\n")
+        #     # print(f"qnet1_tar_preds is: {qnet1_tar_preds}.\n")
+        #     # print(f"qnet2_tar_preds is: {qnet2_tar_preds}.\n")
+        #     # print(f"minimum is: {minimum}.\n")
+        #     # print(f"mean_of_minimum is: {mean_of_minimum}.\n")
+        #     # print(f"mean_of_log is: {mean_of_log}.\n")
+        #     # print(f"targets is: {targets}.\n")
+        #     print("Done with _compute_target!")
 
         return targets
     
@@ -982,7 +990,7 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
                                                                         torch.from_numpy(np_next_obs).to(device))
         return observations,actions,rewards,dones,next_observations
     
-    def _sample_experiences(experiences : Buffer, num_samples : int, device = None, seed : int = 123):
+    def _sample_experiences(experiences : Buffer, num_samples : int, device = None, seed : int = None):
         """
         Randomly samples num_samples experiences from the given experiences buffer, expanding them 
         into observations, actions, rewards, done flags, and next observations, to be returned.
@@ -990,7 +998,8 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
         :param Buffer experiences: A Buffer containing obs, action, reward, done and next_obs.
         :param int num_samples: The number of random samples we get from the buffer.
         :param device: The device to which we move resulting tensors, if any.
-        :param int seed: The seed used for random sampling of experiences.
+        :param int seed: The seed used for random sampling of experiences, if specified.
+        Not used if None.
         :return Tuple[torch.tensor]: Tensors of each component in the Buffer; 
         observations, actions, rewards, dones, next_observations.
         """
