@@ -66,7 +66,7 @@ class TestSoftActorCritic_Policy(unittest.TestCase):
         # print("actions1: ", actions1, "actions1.shape: ", actions1.shape, "\n")
         jacobian_diagonals1 = (1 - torch.tanh(actions1).pow(2))
         # print("jacobian_diagonals1: ", jacobian_diagonals1, "jacobian_diagonals1.shape: ", jacobian_diagonals1.shape, "\n")
-        jacobian_trace1 = torch.sum(action_multiplier * torch.log(jacobian_diagonals1), dim=2)
+        jacobian_trace1 = torch.sum(action_multiplier * torch.log(jacobian_diagonals1 + 1e-6), dim=2)
         # print("jacobian_trace1: ", jacobian_trace1, "jacobian_trace1.shape: ", jacobian_trace1.shape, "\n")
         expected1 = before1 - jacobian_trace1
         # print("expected1: ", expected1, "expected1.shape: ", expected1.shape, "\n")

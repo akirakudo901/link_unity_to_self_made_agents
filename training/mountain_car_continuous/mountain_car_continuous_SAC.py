@@ -1,6 +1,11 @@
 """
 Implementation of SAC training with the continuous version of the mountain car
-environment with gym. Check if the implementation runs or not if in a simple environment.
+environment with gym. 
+Initially thought to check if the implementation runs or not if in a simple environment.
+Then figured out this is a quite complicated environment where the reward is shaped such 
+that only a successful exploration is followed by learning to get up the hill (and exploration
+helped by SAC's entropy term might not be strong enough to reach such success before the 
+gas cost of outputting high speed takes over.)
 """
 
 import gymnasium
@@ -33,10 +38,12 @@ learning_algorithm = SoftActorCritic(
     q_net_learning_rate=3e-4, 
     policy_learning_rate=1e-3, 
     discount=0.99, 
-    temperature=0.2,
+    temperature=0.41,
     observation_size=observation_size,
     action_size=action_size, 
     action_ranges=action_ranges,
+    pol_eval_batch_size=256, 
+    pol_imp_batch_size=256, 
     update_qnet_every_N_gradient_steps=1000,
     device=device
     # leave the optimizer as the default = Adam
@@ -45,9 +52,9 @@ learning_algorithm = SoftActorCritic(
 trainer = GymOffPolicyBaseTrainer(env, learning_algorithm)
 
 # The number of training steps that will be performed
-NUM_TRAINING_STEPS = 10000
-# The number of experiences to be initlally collected before doing any training
-NUM_INIT_EXP = 2000
+NUM_TRAINING_STEPS = 300
+# The number of experieces to be initlally collected before doing any training
+NUM_INIT_EXP = 1028
 # The number of experiences to collect per training step
 NUM_NEW_EXP = 1
 # The maximum size of the Buffer
@@ -81,7 +88,7 @@ l_a = trainer.train(
     num_new_experience=NUM_NEW_EXP,
     max_buffer_size=BUFFER_SIZE,
     num_initial_experiences=NUM_INIT_EXP,
-    evaluate_every_N_steps=NUM_TRAINING_STEPS // 100,
+    evaluate_every_N_steps=NUM_TRAINING_STEPS // 5,
     initial_exploration_function=uniform_random_sampling,
     training_exploration_function=no_exploration,
     save_after_training=SAVE_AFTER_TRAINING,

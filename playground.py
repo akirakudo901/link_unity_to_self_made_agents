@@ -201,13 +201,18 @@ import torch
 #############################################
 # DOUBLE CHECKING HOW SQUEEZING WORKS
 
-t1 = torch.tensor([[[-0.0201]], [[-0.1084]]])
-single_sample = t1[:, 0, :]
-squeeze_all = torch.squeeze(single_sample)
-squeeze_zero = torch.squeeze(single_sample, dim=0)
-squeeze_one  = torch.squeeze(single_sample, dim=1)
-# squeeze_two  = torch.squeeze(single_sample, dim=2)
-print(f"single_sample: {single_sample}.")
-print(f"squeeze_all: {squeeze_all}\n squeeze_zero: {squeeze_zero}\n \
-      squeeze_one: {squeeze_one}\n squeeze_two: {squeeze_one}.")
-print(f"single_sample.shape: {single_sample.shape}")
+# t1 = torch.tensor([[[-0.0201]], [[-0.1084]]])
+# single_sample = t1[:, 0, :]
+# squeeze_all = torch.squeeze(single_sample)
+# squeeze_zero = torch.squeeze(single_sample, dim=0)
+# squeeze_one  = torch.squeeze(single_sample, dim=1)
+# # squeeze_two  = torch.squeeze(single_sample, dim=2)
+# print(f"single_sample: {single_sample}.")
+# print(f"squeeze_all: {squeeze_all}\n squeeze_zero: {squeeze_zero}\n \
+#       squeeze_one: {squeeze_one}\n squeeze_two: {squeeze_one}.")
+# print(f"single_sample.shape: {single_sample.shape}")
+
+obs = torch.tensor([[0, 1, 2], [3, 4, 5]])
+actions = torch.tensor([[10, 11, 12, 13, 14], [15, 16, 17, 18, 19]])
+inp = torch.cat((obs, actions), dim=1)
+print(inp)

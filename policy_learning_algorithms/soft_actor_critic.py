@@ -321,7 +321,7 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
         def forward(self, 
                     obs : torch.tensor,
                     num_samples : int = 1,
-                    deterministic : bool = False,
+                    deterministic : bool = False
                     ):
             """
             Takes in the observation to spit out num_samples actions sampled from the 
@@ -350,7 +350,8 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
             :return torch.tensor squashed: The actions sampled from the policy and squashed between
             -1 and 1 using the tanh (as done with the original paper to limit possible action range)
             before being adjusted to match the action_ranges values.
-            :return torch.tensor log_probs: The log probability for corresponding actions in squashed.
+            :return torch.tensor log_probs: The log probability for corresponding actions in squashed
+            after appropriate adjustment.
             """
             
             # we squash action values to be between a given bounary using tanh and adjustment
@@ -360,7 +361,9 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
                 # print("actions right after tanh: ", squashed_neg_one_to_one, "squashed_neg_one_to_one.shape: ", squashed_neg_one_to_one.shape)
                 t_device = squashed_neg_one_to_one.device
                 # print("action_multiplier: ", self.action_multiplier, "action_avgs: ", self.action_avgs)
-                return squashed_neg_one_to_one * self.action_multiplier.to(t_device).detach() + self.action_avgs.to(t_device).detach()
+                return (squashed_neg_one_to_one * 
+                        self.action_multiplier.to(t_device).detach() + 
+                        self.action_avgs.to(t_device).detach())
 
             # we obtain the mean myu and sd sigma of the gaussian distribution
             stack_out = self.linear_relu_stack(obs)
@@ -447,7 +450,8 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
             # print("before: ", before, "before.shape: ", before.shape)
             # print("actions: ", actions, "actions.shape: ", actions.shape)
             multiplier = self.action_multiplier.to(actions.device)
-            jacobian_trace = torch.sum((multiplier * torch.log(1 - torch.tanh(actions).pow(2)) ), dim=2)
+            jacobian_trace = torch.sum((multiplier * torch.log(1 - torch.tanh(actions).pow(2) + 1e-6)), dim=2)
+            # jacobian_trace = torch.sum((multiplier * torch.log(1 - torch.tanh(actions).pow(2)) ), dim=2) #TODO OLD IMPLEMENTATION ALLOWED TORCH.LOG TO GO TO -INF, BUT ADDING 1e-6 PREVENTS THAT FROM HAPPENING
             # print("jacobian_trace: ", jacobian_trace, "jacobian_trace.shape: ", jacobian_trace.shape)
             # subtract it from before to yield after
             after = before - jacobian_trace
@@ -463,6 +467,8 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
                  observation_size : int,
                  action_size : int,
                  action_ranges : Tuple[Tuple[float]],
+                 pol_eval_batch_size : int,
+                 pol_imp_batch_size : int,
                  update_qnet_every_N_gradient_steps : int = 1000,
                  optimizer : optim.Optimizer = optim.Adam, 
                  device = None
@@ -474,6 +480,8 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
         self.obs_size = observation_size
         self.act_size = action_size
         self.act_ranges = action_ranges
+        self.pol_eval_batch_size = pol_eval_batch_size
+        self.pol_imp_batch_size = pol_imp_batch_size
         self.update_qnet_every_N_gradient_steps = update_qnet_every_N_gradient_steps
         
         if device == None:
@@ -693,21 +701,20 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
     #         if policy_improvement_gradient_step_count >= NUM_IMP_STEPS: break 
     
     def update(self, experiences : Buffer, seed=None):
-        # "experiences" is of the form: (obs, action, reward, done, next_obs)
+        # a single experience contained in "experiences" is of the form: 
+        # (obs, action, reward, done, next_obs)
         NUM_EVAL_STEPS = 1
 
         POLICY_EVAL_NUM_EPOCHS = 1
-        POL_EVAL_BATCH_SIZE = 1028
         POL_EVAL_FRESH_ACTION_SAMPLE_SIZE = 1
 
         NUM_IMP_STEPS = 1
 
         POLICY_IMP_NUM_EPOCHS = 1
-        POL_IMP_BATCH_SIZE = 1028
         POL_IMP_FRESH_ACTION_SAMPLE_SIZE = 1
 
         observations, actions, rewards, dones, next_observations = SoftActorCritic._sample_experiences(
-            experiences=experiences, num_samples=POLICY_EVAL_NUM_EPOCHS * POL_EVAL_BATCH_SIZE, 
+            experiences=experiences, num_samples=POLICY_EVAL_NUM_EPOCHS * self.pol_eval_batch_size, 
             device=self.device, seed=seed
             )
         # print("observations.shape: ", observations.shape)
@@ -729,9 +736,9 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
         policy_evaluation_gradient_step_count = 0
 
         for _ in range(POLICY_EVAL_NUM_EPOCHS):
-            for i in range(experiences.size() // POL_EVAL_BATCH_SIZE + 1):
-                batch_start = i*POL_EVAL_BATCH_SIZE
-                batch_end = min((i+1)*POL_EVAL_BATCH_SIZE, experiences.size())
+            for i in range(experiences.size() // self.pol_eval_batch_size + 1):
+                batch_start = i*self.pol_eval_batch_size
+                batch_end = min((i+1)*self.pol_eval_batch_size, experiences.size())
 
                 batch_obs = observations[batch_start : batch_end].detach()
                 # print("batch_obs[:10]: ", batch_obs[:10], "\n")
@@ -808,7 +815,7 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
 
         new_seed = ((seed - 1)*seed) % (seed + 1) if seed is not None else None
         observations, actions, rewards, dones, next_observations = SoftActorCritic._sample_experiences(
-            experiences=experiences, num_samples=POLICY_IMP_NUM_EPOCHS * POL_IMP_BATCH_SIZE, 
+            experiences=experiences, num_samples=POLICY_IMP_NUM_EPOCHS * self.pol_imp_batch_size, 
             device=self.device, seed=new_seed
             )
         
@@ -819,9 +826,9 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
         policy_improvement_gradient_step_count = 0
 
         for _ in range(POLICY_IMP_NUM_EPOCHS):
-            for i in range(experiences.size() // POL_IMP_BATCH_SIZE + 1):
-                batch_start = i*POL_IMP_BATCH_SIZE
-                batch_end = min((i+1)*POL_IMP_BATCH_SIZE, experiences.size())
+            for i in range(experiences.size() // self.pol_imp_batch_size + 1):
+                batch_start = i*self.pol_imp_batch_size
+                batch_end = min((i+1)*self.pol_imp_batch_size, experiences.size())
 
                 batch_obs = observations[batch_start : batch_end].detach()
                 # print(batch_obs, "\n")
