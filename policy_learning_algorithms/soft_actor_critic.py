@@ -315,7 +315,13 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
                 nn.ReLU()
             )
 
-            self.mean_layer = nn.Linear(fc_out, action_size)
+            #TODO experimentation around whether constraining mean between -1 to 1 * action multiplier
+            # allows training to keep going without gradient falling to inf
+            # self.mean_layer = nn.Linear(fc_out, action_size) #initial implementation
+            self.mean_layer = nn.Sequential(
+                nn.Linear(fc_out, action_size),
+                nn.Tanh()
+                )
             self.sd_layer = nn.Linear(fc_out, action_size)
 
         def forward(self, 
