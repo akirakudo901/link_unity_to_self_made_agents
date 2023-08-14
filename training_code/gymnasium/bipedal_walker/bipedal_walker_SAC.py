@@ -32,13 +32,13 @@ learning_algorithm = SoftActorCritic(
     q_net_learning_rate=3e-4, 
     policy_learning_rate=1e-3, 
     discount=0.99, 
-    temperature=0.1,
+    temperature=0.25,
     observation_size=observation_size,
     action_size=action_size, 
     action_ranges=action_ranges,
-    pol_eval_batch_size=1028,
-    pol_imp_batch_size=1028,
-    update_qnet_every_N_gradient_steps=1000,
+    pol_eval_batch_size=512,
+    pol_imp_batch_size=512,
+    update_qnet_every_N_gradient_steps=250,
     device=device
     # leave the optimizer as the default = Adam
     )

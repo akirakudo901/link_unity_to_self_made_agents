@@ -1,7 +1,10 @@
 
 """
 Implementation of SAC training with the continuous version of the mountain car
-environment with gym. Check if the implementation runs or not if in a simple environment.
+environment with gym. 
+Was meant to be used to check if the implementation runs or not if in a simple environment.
+Turns out this environment itself is quite tricky with a need for successful exploration
+for learning, which my SAC wasn't quite able to achieve.
 """
 
 import gymnasium
@@ -22,7 +25,7 @@ print()
 cpu_device = torch.device("cpu")
 
 # create the environment and determine specs about it
-env = gymnasium.make("MountainCarContinuous-v0")#, render_mode="human")
+env = gymnasium.make("MountainCarContinuous-v0", render_mode="human")
 observation_size = env.observation_space.shape[0]
 action_size = env.action_space.shape[0]
 action_ranges = tuple([(env.action_space.low[i], env.action_space.high[i]) for i in range(action_size)])
@@ -34,10 +37,12 @@ learning_algorithm = SoftActorCritic(
     q_net_learning_rate=3e-4, 
     policy_learning_rate=1e-3, 
     discount=0.99, 
-    temperature=0.025,
+    temperature=0.41,
     observation_size=observation_size,
     action_size=action_size, 
     action_ranges=action_ranges,
+    pol_eval_batch_size=64,
+    pol_imp_batch_size=64,
     update_qnet_every_N_gradient_steps=1000,
     device=device
     # leave the optimizer as the default = Adam
@@ -46,9 +51,9 @@ learning_algorithm = SoftActorCritic(
 trainer = GymOffPolicyBaseTrainer(env, learning_algorithm)
 
 # The number of training steps that will be performed
-NUM_TRAINING_STEPS = 10000
+NUM_TRAINING_STEPS = 300
 # The number of experiences to be initlally collected before doing any training
-NUM_INIT_EXP = 2000
+NUM_INIT_EXP = 5000
 # The number of experiences to collect per training step
 NUM_NEW_EXP = 1
 # The maximum size of the Buffer
@@ -82,7 +87,7 @@ l_a = trainer.train(
     num_new_experience=NUM_NEW_EXP,
     max_buffer_size=BUFFER_SIZE,
     num_initial_experiences=NUM_INIT_EXP,
-    evaluate_every_N_steps=NUM_TRAINING_STEPS // 100,
+    evaluate_every_N_steps=NUM_TRAINING_STEPS // 5,
     initial_exploration_function=uniform_random_sampling,
     training_exploration_function=no_exploration,
     save_after_training=SAVE_AFTER_TRAINING,
