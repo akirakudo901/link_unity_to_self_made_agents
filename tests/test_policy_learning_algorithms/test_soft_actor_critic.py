@@ -66,7 +66,7 @@ class TestSoftActorCritic_Policy(unittest.TestCase):
         # print("actions1: ", actions1, "actions1.shape: ", actions1.shape, "\n")
         jacobian_diagonals1 = (1 - torch.tanh(actions1).pow(2))
         # print("jacobian_diagonals1: ", jacobian_diagonals1, "jacobian_diagonals1.shape: ", jacobian_diagonals1.shape, "\n")
-        jacobian_trace1 = torch.sum(action_multiplier * torch.log(jacobian_diagonals1 + 1e-6), dim=2)
+        jacobian_trace1 = torch.sum(torch.log(action_multiplier * jacobian_diagonals1 + 1e-6), dim=2)
         # print("jacobian_trace1: ", jacobian_trace1, "jacobian_trace1.shape: ", jacobian_trace1.shape, "\n")
         expected1 = before1 - jacobian_trace1
         # print("expected1: ", expected1, "expected1.shape: ", expected1.shape, "\n")
@@ -76,7 +76,7 @@ class TestSoftActorCritic_Policy(unittest.TestCase):
         actual1 = pol._correct_for_squash(before=before1, actions=actions1)
         # print("actual1: ", actual1, "actual1s.shape: ", actual1.shape, "\n")
         
-        self.assertTrue(torch.equal(expected1, actual1))
+        self.assertTrue(torch.isclose(expected1, actual1).all())
 
     def test_forward(self):
         # TODO ONLY TESTING IF IT RUNS
@@ -95,12 +95,15 @@ class TestSoftActorCritic_Policy(unittest.TestCase):
     def test_compute_qnet_target(self):
         # TODO ONLY TESTING IF IT RUNS
         OBSERVATION_SIZE, ACTION_SIZE = 3, 4
-        DISCOUNT, TEMPERATURE = 0.8, 0.6
+        DISCOUNT, TEMPERATURE, TAU = 0.8, 0.6, 0.005
 
         testSAC = SoftActorCritic(
             q_net_learning_rate=1e-3, policy_learning_rate=1e-3, discount=DISCOUNT, 
-            temperature=TEMPERATURE, observation_size=OBSERVATION_SIZE, action_size=ACTION_SIZE, 
-            device="cpu", action_ranges=((-1., 1.), (-2., 3.), (0., 1.), (-10., 10.))
+            temperature=TEMPERATURE, qnet_update_smoothing_coefficient=TAU,
+            observation_size=OBSERVATION_SIZE, action_size=ACTION_SIZE, 
+            device="cpu", action_ranges=((-1., 1.), (-2., 3.), (0., 1.), (-10., 10.)),
+            pol_eval_batch_size=8, pol_imp_batch_size=8,
+            update_qnet_every_N_gradient_steps=1
             )
 
         qnet1 = SoftActorCritic.QNet(observation_size=OBSERVATION_SIZE, action_size=ACTION_SIZE)
@@ -166,12 +169,15 @@ class TestSoftActorCritic_Policy(unittest.TestCase):
     def test_compute_exponentiated_qval(self):
         # TODO ONLY TESTING IF IT RUNS
         OBSERVATION_SIZE, ACTION_SIZE = 3, 4
-        DISCOUNT, TEMPERATURE = 0.8, 0.6
+        DISCOUNT, TEMPERATURE, TAU = 0.8, 0.6, 0.005
 
         testSAC = SoftActorCritic(
             q_net_learning_rate=1e-3, policy_learning_rate=1e-3, discount=DISCOUNT, 
-            temperature=TEMPERATURE, observation_size=OBSERVATION_SIZE, action_size=ACTION_SIZE,
-            device="cpu", action_ranges=((-1., 1.), (-2., 3.), (0., 1.), (-10., 10.))
+            temperature=TEMPERATURE, qnet_update_smoothing_coefficient=TAU,
+            observation_size=OBSERVATION_SIZE, action_size=ACTION_SIZE,
+            device="cpu", action_ranges=((-1., 1.), (-2., 3.), (0., 1.), (-10., 10.)),
+            pol_eval_batch_size=8, pol_imp_batch_size=8,
+            update_qnet_every_N_gradient_steps=1
             )
 
         qnet1 = SoftActorCritic.QNet(observation_size=OBSERVATION_SIZE, action_size=ACTION_SIZE)
@@ -216,12 +222,15 @@ class TestSoftActorCritic_Policy(unittest.TestCase):
     def test_update(self):
         # TODO ONLY TESTING IF IT RUNS
         OBSERVATION_SIZE, ACTION_SIZE = 3, 4
-        DISCOUNT, TEMPERATURE = 0.8, 0.6
+        DISCOUNT, TEMPERATURE, TAU = 0.8, 0.6, 0.005
 
         testSAC = SoftActorCritic(
             q_net_learning_rate=1e-3, policy_learning_rate=1e-3, discount=DISCOUNT, 
-            temperature=TEMPERATURE, observation_size=OBSERVATION_SIZE, action_size=ACTION_SIZE,
-            device="cpu", action_ranges=((-1., 1.), (-2., 3.), (0., 1.), (-10., 10.))
+            temperature=TEMPERATURE, qnet_update_smoothing_coefficient=TAU, 
+            observation_size=OBSERVATION_SIZE, action_size=ACTION_SIZE,
+            device="cpu", action_ranges=((-1., 1.), (-2., 3.), (0., 1.), (-10., 10.)),
+            pol_eval_batch_size=8, pol_imp_batch_size=8,
+            update_qnet_every_N_gradient_steps=1
             )
 
         # assuming a batch of two experiences

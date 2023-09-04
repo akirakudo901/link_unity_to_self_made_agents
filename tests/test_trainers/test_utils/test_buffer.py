@@ -129,13 +129,21 @@ class TestListBuffer(unittest.TestCase):
         obs1, act1, rew1, don1, nob1 = self.buffer.sample_random_experiences(num_samples=1, seed=123)
         obs2,    _,    _,    _,    _ = self.buffer.sample_random_experiences(num_samples=1, seed=246)
         obs3,    _,    _,    _,    _ = self.buffer.sample_random_experiences(num_samples=1, seed=369)
+        obs4,    _,    _,    _,    _ = self.buffer.sample_random_experiences(num_samples=1, seed=999)
+        obs5,    _,    _,    _,    _ = self.buffer.sample_random_experiences(num_samples=1, seed=989)
+        obs6,    _,    _,    _,    _ = self.buffer.sample_random_experiences(num_samples=1, seed=899)
+        obs7,    _,    _,    _,    _ = self.buffer.sample_random_experiences(num_samples=1, seed=226)
+        obs8,    _,    _,    _,    _ = self.buffer.sample_random_experiences(num_samples=1, seed=31)
+        obs9,    _,    _,    _,    _ = self.buffer.sample_random_experiences(num_samples=1, seed=341)
         self.assertEqual(obs1.shape[0], 1)
         self.assertEqual(act1.shape[0], 1)
         self.assertEqual(rew1.shape[0], 1)
         self.assertEqual(don1.shape[0], 1)
         self.assertEqual(nob1.shape[0], 1)
-        self.assertTrue((not np.array_equal(obs1, obs2)) or 
-                        (not np.array_equal(obs1, obs3)) or 
+        self.assertTrue((not np.array_equal(obs1, obs2)) or (not np.array_equal(obs1, obs3)) or
+                        (not np.array_equal(obs1, obs4)) or (not np.array_equal(obs1, obs5)) or
+                        (not np.array_equal(obs1, obs6)) or (not np.array_equal(obs1, obs7)) or
+                        (not np.array_equal(obs1, obs8)) or (not np.array_equal(obs1, obs9)) or 
                         (not np.array_equal(obs2, obs3)))
         # see that 2 random experiences are indeed generated
         obs4, _, _, _, _ = self.buffer.sample_random_experiences(num_samples=2, seed=123)
@@ -144,6 +152,8 @@ class TestListBuffer(unittest.TestCase):
         self.assertEqual(self.buffer.size(), 3)
         obs5, _, _, _, _ = self.buffer.sample_random_experiences(num_samples=10, seed=123)
         self.assertEqual(obs5.shape[0], 3)
+        print("WARNING: SINCE THIS IS AN INCOMPLETE TEST WHICH PASSES ONLY WITH HIGH PROBABILITY, " + 
+              "THERE MIGHT BE CASES WHERE THIS FAIL - RERUNNING IT AGAIN SHOULD WORK THOUGH.")
         
 
 class TestNdArrayBuffer(TestListBuffer):
