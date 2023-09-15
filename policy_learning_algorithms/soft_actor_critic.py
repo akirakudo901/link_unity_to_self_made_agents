@@ -864,7 +864,7 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
         into a torch tensor before further processing is done.
 
         :param state: The observation state given as torch.tensor or np.ndarray.
-        :return torch.tensor action: The action the policy deems optimal. 
+        :return np.ndarray action: The action the policy deems optimal as ndarray. 
         """
         # if type is not torch.tensor, try casting
         if type(state) != type(torch.tensor([0])):
@@ -874,7 +874,7 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
                 raise Exception("Error in reading observation within SAC get_optimal_action; \
                                 'state' needs to be one of torch.tensor or np.ndarray.")
         action = self.policy(obs=state.to(self.device), deterministic=True)
-        return action
+        return action.detach().numpy()
     
     def save(self, task_name: str, save_dir : str = None):
         creation_time = datetime.now().strftime("%Y_%m_%d_%H_%M")

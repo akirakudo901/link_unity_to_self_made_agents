@@ -1,0 +1,5 @@
+#ignoring all pycache objects and __pycache__ folders
+*.pyc
+**/__pycache__
+# ignoring all images renderd to show reward
+*.png

@@ -275,6 +275,8 @@ class NdArrayBuffer(Buffer):
         :param int num_samples: The number of samples we pick. The returned number of
         samples is the minimum of this and the size of the buffer.
         :param int seed: The seed value useful for reproducible sampling. Not applied if None.
+        :returns Tuple[np.ndarray]: Returns a tuple of numpy arrays corresponding to the transitions:
+        observations, actions, rewards, done flags and next observations.
         """
         rng = np.random.default_rng(seed=seed)
         num_samples = min(num_samples, self._size) #adjust num_samples to not exceed buffer size

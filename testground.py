@@ -168,4 +168,12 @@ from trainers.unityenv_base_trainer import Buffer, Experience
 # action_ranges = ((-1., 1.),)*4
 # action_multiplier = [(range[1] - range[0]) / 2 for range in action_ranges]
 # print(action_ranges, action_multiplier)
-                
+
+import gymnasium
+
+env = gymnasium.make("CartPole-v1")
+env.reset()
+env.step(0)
+print("First one works fine!")
+env.step(np.array(0))
+print("Second one works fine!")

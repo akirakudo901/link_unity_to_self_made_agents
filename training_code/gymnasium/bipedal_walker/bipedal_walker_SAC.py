@@ -33,12 +33,13 @@ learning_algorithm = SoftActorCritic(
     policy_learning_rate=1e-3, 
     discount=0.99, 
     temperature=0.25,
+    qnet_update_smoothing_coefficient=0.005,
     observation_size=observation_size,
     action_size=action_size, 
     action_ranges=action_ranges,
     pol_eval_batch_size=512,
     pol_imp_batch_size=512,
-    update_qnet_every_N_gradient_steps=250,
+    update_qnet_every_N_gradient_steps=1,
     device=device
     # leave the optimizer as the default = Adam
     )
@@ -46,7 +47,7 @@ learning_algorithm = SoftActorCritic(
 trainer = GymOffPolicyBaseTrainer(env, learning_algorithm)
 
 # The number of training steps that will be performed
-NUM_TRAINING_STEPS = 10000
+NUM_TRAINING_STEPS = 20000
 # The number of experiences to be initlally collected before doing any training
 NUM_INIT_EXP = 3000
 # The number of experiences to collect per training step
@@ -87,5 +88,5 @@ l_a = trainer.train(
     training_exploration_function=no_exploration,
     save_after_training=SAVE_AFTER_TRAINING,
     task_name=TASK_NAME,
-    render_evaluation=True
+    render_evaluation=False
     )

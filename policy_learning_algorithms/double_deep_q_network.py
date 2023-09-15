@@ -10,19 +10,19 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-from trainers.gym_base_trainer import ListBuffer
+from trainers.gym_base_trainer import NdArrayBuffer
 
 DNN_SAVE_FOLDER = "trained_algorithms/DNN"
 
 UPDATE_TARGET_DNN_EVERY_N = 4096
 
-class DDQN:
+class DoubleDeepQNetwork:
 
     class DNN(nn.Module):
 
         def __init__(self, input_size, output_size):
             # Initializes a new DNN.
-            super(DDQN.DNN, self).__init__()
+            super(DoubleDeepQNetwork.DNN, self).__init__()
             
             self.fc_relu_stack = nn.Sequential(
                 nn.Linear(input_size, 8),
@@ -40,15 +40,15 @@ class DDQN:
     def __init__(self, observation_size, action_size, device, l_r=0.1, d_r=0.95):
         self.discount = d_r
 
-        self.observation_size = observation_size
-        self.action_size = action_size
+        self.obs_size = observation_size
+        self.act_size = action_size
         self.device = device
         
-        self.dnn_policy = DDQN.DNN(
+        self.dnn_policy = DoubleDeepQNetwork.DNN(
             input_size=observation_size, 
             output_size=action_size
             ).to(self.device)
-        self.dnn_target = DDQN.DNN(
+        self.dnn_target = DoubleDeepQNetwork.DNN(
             input_size=observation_size, 
             output_size=action_size
             ).to(self.device)
@@ -66,7 +66,7 @@ class DDQN:
             raise Exception("State passed to get_optimal_action should be a np.array or torch.tensor.")        
         state_tensor = state_tensor.to(self.device).unsqueeze(0)
         prediction = self.dnn_policy(state_tensor)
-        return torch.argmax(prediction).item()
+        return torch.argmax(prediction).numpy()
     
     def save(self, taskName, path=None):
         creation_time = datetime.now().strftime("%Y_%m_%d_%H_%M")
@@ -80,52 +80,34 @@ class DDQN:
         self.dnn_policy.to(self.device)
         
     # Updates the algorithm at the end of episode
-    def update(self, buffer : ListBuffer):
+    def update(self, buffer : NdArrayBuffer):
         BATCH_SIZE = 32
-        EPOCHS = 12
         
         loss_fn = nn.MSELoss()
-        reshape_size = (len(batch), self.action_size)
 
-        for _ in range(EPOCHS):
-            random.shuffle(buffer)
-            batches = [
-                buffer[i * BATCH_SIZE : (i + 1) * BATCH_SIZE]
-                for i in range(
-                min(8, len(buffer) // BATCH_SIZE)
-                )
-            ]
-
-            for batch in batches:
-                # stack each entry into torch tensors to do further computation
-                current_states = torch.from_numpy(np.stack([exp.obs for exp in batch]))
-                continuous_actions = torch.from_numpy(np.stack([exp.action for exp in batch]))
-                rewards = torch.from_numpy(np.stack([exp.reward for exp in batch]))
-                next_states = torch.from_numpy(np.stack([exp.next_obs for exp in batch]))
-                # get the corresponding updated q val
-                next_state_rewards = torch.reshape(self.dnn_target(next_states).detach(), reshape_size)
-                print(next_state_rewards.shape)
-                updated_q = (rewards  #(32, 1)
-                             + self.discount
-                             * torch.max(next_state_rewards, dim=2, keepdim=True).values) #(32, 39)
-                print(updated_q.shape)
-                # from action, make a mask 
-                mask = torch.zeros(reshape_size)
-                discrete_actions = DDQN.convert_continuous_action_to_discrete(continuous_actions)
-                print(discrete_actions.shape)
-                print(mask.shape)
-                mask.scatter_(2, discrete_actions.unsqueeze(2).type(torch.int64), 1)
-                print(mask.shape)
-                # apply mask to obtain the relevant predictions for current states
-                compared_q = torch.sum(
-                    torch.reshape(self.dnn_policy(current_states), reshape_size)
-                    * mask, dim=2)
-                # calculate loss)
-                loss = loss_fn(compared_q, updated_q)
-                # propagate the result
-                self.optim.zero_grad()
-                loss.backward()
-                self.optim.step()
+        # sample a minibatch of transitions from the buffer
+        np_obs, np_act, np_rew, np_don, np_next_obs = buffer.sample_random_experiences(num_samples=BATCH_SIZE) #TODO no seed, how to incorporate it?
+        states      = torch.from_numpy(np_obs)
+        actions     = torch.from_numpy(np_act)
+        rewards     = torch.from_numpy(np_rew)
+        dones       = torch.from_numpy(np_don)
+        next_states = torch.from_numpy(np_next_obs)
+        # get the corresponding updated q val
+        updated_q = (rewards + 
+                     (1 - dones)
+                     self.discount * 
+                     torch.max(self.dnn_target(next_states).detach(), dim=1).values)
+        # from action, make a mask 
+        mask = torch.zeros(len(states), ACTION_NUM)
+        mask.scatter_(1, actions.unsqueeze(1), 1)
+        # apply mask to obtain the relevant predictions for current states
+        compared_q = torch.sum(self.dnn_policy(states) * mask, dim=1)
+        # calculate loss)
+        loss = loss_fn(compared_q, updated_q)
+        # propagate the result
+        self.optim.zero_grad()
+        loss.backward()
+        self.optim.step()
 
         # update the target dnn appropriately after one update
         self._update_target()

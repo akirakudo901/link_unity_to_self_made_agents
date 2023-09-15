@@ -89,7 +89,9 @@ class GymOffPolicyBaseTrainer:
             self.last_observation, _ = self.env.reset()
             self.last_action = exploration_function(
                 torch.squeeze( #adjust, as output from learning_algo always has a batch dimension
-                    self.learning_algorithm(np.expand_dims(self.last_observation, 0)).cpu().detach(), dim=0
+                    torch.from_numpy(self.learning_algorithm(
+                        np.expand_dims(self.last_observation, 0)
+                        )).cpu().detach(), dim=0
                 ).numpy(), 
                 self.env
             )
@@ -114,7 +116,9 @@ class GymOffPolicyBaseTrainer:
             
             best_action = exploration_function(
                 torch.squeeze( #adjust, as output from learning_algo always has a batch dimension
-                    self.learning_algorithm(np.expand_dims(self.last_observation, 0)).cpu().detach(), dim=0
+                    torch.from_numpy(self.learning_algorithm(
+                        np.expand_dims(self.last_observation, 0)
+                        )).cpu().detach(), dim=0
                 ).numpy(),
                 self.env
             )
@@ -233,7 +237,7 @@ class GymOffPolicyBaseTrainer:
 
                 # evaluate sometimes
                 if (i + 1) % (evaluate_every_N_steps) == 0:
-                    cumulative_reward = self.evaluate(5, render=render_evaluation)
+                    cumulative_reward = self.evaluate(1, render=render_evaluation)
                     cumulative_rewards.append(cumulative_reward)
                     print(f"Training loop {i+1}/{num_training_steps} successfully ended: reward={cumulative_reward}.\n")
                 
@@ -289,7 +293,7 @@ class GymOffPolicyBaseTrainer:
 
                 # get optimal action by agent
                 a = torch.squeeze( #adjust, as output from learning_algo always has a batch dimension
-                    self.learning_algorithm(np.expand_dims(s, 0)).cpu().detach(), dim=0
+                    torch.from_numpy(self.learning_algorithm(np.expand_dims(s, 0))).cpu().detach(), dim=0
                 ).numpy()
 
                 # update env accordingly
