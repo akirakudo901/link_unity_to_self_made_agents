@@ -1,10 +1,11 @@
 
+import copy
 import unittest
 
 import numpy as np
 
-from trainers.utils.buffer import ListBuffer, NdArrayBuffer
-from trainers.utils.experience import Experience
+from models.trainers.utils.buffer import ListBuffer, NdArrayBuffer
+from models.trainers.utils.experience import Experience
 
 class TestListBuffer(unittest.TestCase):
 
@@ -145,16 +146,51 @@ class TestListBuffer(unittest.TestCase):
                         (not np.array_equal(obs1, obs6)) or (not np.array_equal(obs1, obs7)) or
                         (not np.array_equal(obs1, obs8)) or (not np.array_equal(obs1, obs9)) or 
                         (not np.array_equal(obs2, obs3)))
-        # see that 2 random experiences are indeed generated
-        obs4, _, _, _, _ = self.buffer.sample_random_experiences(num_samples=2, seed=123)
-        self.assertEqual(obs4.shape[0], 2)
-        # see that if num_samples > buffer size, we get buffer size experiences
+        # see that if seed is the same, we can sample the same observations
+        obs_seed1_1, _, _, _, _ = self.buffer.sample_random_experiences(num_samples=1, seed=100)
+        obs_seed1_2, _, _, _, _ = self.buffer.sample_random_experiences(num_samples=1, seed=100)
+        self.assertTrue(np.array_equal(obs_seed1_1, obs_seed1_2))
+        obs_seed2_1, _, _, _, _ = self.buffer.sample_random_experiences(num_samples=1, seed=200)
+        obs_seed2_2, _, _, _, _ = self.buffer.sample_random_experiences(num_samples=1, seed=200)
+        self.assertTrue(np.array_equal(obs_seed2_1, obs_seed2_2))
+        obs_seed3_1, _, _, _, _ = self.buffer.sample_random_experiences(num_samples=2, seed=300)
+        obs_seed3_2, _, _, _, _ = self.buffer.sample_random_experiences(num_samples=2, seed=300)
+        self.assertTrue(np.array_equal(obs_seed3_1, obs_seed3_2))
+        obs_seed4_1, _, _, _, _ = self.buffer.sample_random_experiences(num_samples=2, seed=400)
+        obs_seed4_2, _, _, _, _ = self.buffer.sample_random_experiences(num_samples=2, seed=400)
+        self.assertTrue(np.array_equal(obs_seed4_1, obs_seed4_2))
+        # see that 2 random experiences are indeed generated without repeat
+        obs100, _, _, _, _ = self.buffer.sample_random_experiences(num_samples=2, seed=123)
+        self.assertEqual(obs100.shape[0], 2)
+        self.assertTrue(not np.array_equal(obs100[0], obs100[1]))
+        # see that if num_samples > buffer size, we get buffer size experiences without repeat
         self.assertEqual(self.buffer.size(), 3)
-        obs5, _, _, _, _ = self.buffer.sample_random_experiences(num_samples=10, seed=123)
-        self.assertEqual(obs5.shape[0], 3)
+        obs200, _, _, _, _ = self.buffer.sample_random_experiences(num_samples=10, seed=123)
+        self.assertEqual(obs200.shape[0], 3)
+        self.assertTrue((not np.array_equal(obs200[0], obs200[1])) and 
+                        (not np.array_equal(obs200[0], obs200[2])) and 
+                        (not np.array_equal(obs200[1], obs200[2])))
         print("WARNING: SINCE THIS IS AN INCOMPLETE TEST WHICH PASSES ONLY WITH HIGH PROBABILITY, " + 
               "THERE MIGHT BE CASES WHERE THIS FAIL - RERUNNING IT AGAIN SHOULD WORK THOUGH.")
         
+    def test_sample_random_experiences_modification_does_not_affect_buffer_content(self):
+        # append 3 experiences - which fills self.buffer
+        self.buffer.append_experience(*self.exp1)
+        self.buffer.append_experience(*self.exp2)
+        self.buffer.append_experience(*self.exp3)
+        # sample 3 experiences from it and store them
+        self.assertEqual(self.buffer.size(), 3)
+        obs, _, _, _, _ = self.buffer.sample_random_experiences(num_samples=3, seed=123)
+        self.assertEqual(obs.shape[0], 3)
+        initial_obs = copy.deepcopy(obs)
+        # apply changes to the obtained observation
+        obs[0] += 3
+        obs[1] /= 2
+        obs[2] = obs[0] * obs[2]
+        self.assertTrue(not np.array_equal(initial_obs, obs))
+        # check that observations as stored in the buffer have not changed
+        final_obs, _, _, _, _ = self.buffer.sample_random_experiences(num_samples=3, seed=123)
+        self.assertTrue(np.array_equal(initial_obs, final_obs))
 
 class TestNdArrayBuffer(TestListBuffer):
 

@@ -6,10 +6,8 @@ import gymnasium
 import numpy as np
 import torch
 
-from policy_learning_algorithms.soft_actor_critic import SoftActorCritic
-from trainers.gym_base_trainer import GymOffPolicyBaseTrainer
-
-SAVE_AFTER_TRAINING = True
+from models.policy_learning_algorithms.soft_actor_critic import SoftActorCritic
+from models.trainers.gym_base_trainer import GymOffPolicyBaseTrainer
 
 # set up a device first
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -86,7 +84,7 @@ l_a = trainer.train(
     evaluate_every_N_steps=NUM_TRAINING_STEPS // 100,
     initial_exploration_function=uniform_random_sampling,
     training_exploration_function=no_exploration,
-    save_after_training=SAVE_AFTER_TRAINING,
+    save_after_training=True,
     task_name=TASK_NAME,
     render_evaluation=False
     )

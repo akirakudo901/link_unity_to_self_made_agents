@@ -4,9 +4,9 @@ import unittest
 import numpy as np
 import torch
 
-from policy_learning_algorithms.soft_actor_critic import SoftActorCritic
-from trainers.utils.buffer import Buffer, ListBuffer, NdArrayBuffer
-from trainers.utils.experience import Experience
+from models.policy_learning_algorithms.soft_actor_critic import SoftActorCritic
+from models.trainers.utils.buffer import Buffer, ListBuffer, NdArrayBuffer
+from models.trainers.utils.experience import Experience
 
 class TestSoftActorCritic(unittest.TestCase):
 

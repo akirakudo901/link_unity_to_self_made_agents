@@ -3,7 +3,7 @@ import unittest
 
 import numpy as np
 
-from trainers.utils.experience import Experience
+from models.trainers.utils.experience import Experience
 
 class TestExperience(unittest.TestCase):
 

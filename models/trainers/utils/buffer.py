@@ -113,7 +113,7 @@ class ListBuffer(Buffer):
         return len(self._list)
     
     def sample_random_experiences(self, num_samples: int, seed: int = None):
-        rng = np.random.default_rng(seed=None)
+        rng = np.random.default_rng(seed=seed)
         num_samples = min(num_samples, self.size()) #adjust num_samples to not exceed buffer size
         #choose the indices
         indices = rng.choice(range(self.size()), size=num_samples, replace=False)

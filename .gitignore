@@ -5,3 +5,5 @@
 *.png
 # ignoring all trained algorithms
 /trained_algorithms
+# ignore all algorithm theory notes
+/algorithm_theories

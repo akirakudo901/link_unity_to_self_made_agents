@@ -2,8 +2,8 @@
 import numpy as np
 import torch
 
-from policy_learning_algorithms.soft_actor_critic import SoftActorCritic
-from trainers.unityenv_base_trainer import Buffer, Experience
+from models.policy_learning_algorithms.soft_actor_critic import SoftActorCritic
+from models.trainers.unityenv_base_trainer import Buffer, Experience
 
 # sac = SoftActorCritic(learning_rate=0.5, discount=0.9, temperature=0.5, observation_size=3, action_size=1)
 
@@ -169,7 +169,4 @@ from trainers.unityenv_base_trainer import Buffer, Experience
 # action_multiplier = [(range[1] - range[0]) / 2 for range in action_ranges]
 # print(action_ranges, action_multiplier)
 
-import gymnasium
-
-env = gymnasium.make("CartPole-v1")
-print(env.observation_space.shape, env.action_space.shape)
+print(1e+4)

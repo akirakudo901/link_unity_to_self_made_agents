@@ -34,8 +34,44 @@ class DoubleDeepQNetwork:
             return x
     
 
-    def __init__(self, observation_dim_size, discrete_action_size, l_r=0.1, d_r=0.95):
-        
+    def __init__(self, 
+                 observation_dim_size : int, discrete_action_size : int, 
+                 l_r : float = 0.1, d_r : float = 0.95,
+                 hard_update_every_N_updates : int = None,
+                 soft_update_coefficient : float = None):
+        """
+        Initializes a DDQN algorithm.
+        One can choose between hard and soft target update by giving one argument to 
+        either hard_update_every_N_updates or soft_update_coefficient; if 
+        both or neither arguments are given, this results in an error.
+
+        :param int observation_dim_size: The dimension size for observations.
+        :param int discrete_action_size: The dimension size for actions.
+        :param float l_r: The learning rate of neural networks, defaults to 0.1
+        :param float d_r: The decay rate in bootstrapping the Q-value, defaults to 0.95
+        :param int hard_update_every_N_updates: Designates once every how many steps the
+        target network's weights are updated to match that of the policy network, defaults to None.
+        :param float soft_update_coefficient: Designates the proportions at which we at every step 
+        update the target network's weights utilizing that of the policy network, defaults to None.
+        """
+
+        if hard_update_every_N_updates == None and soft_update_coefficient == None:
+            raise Exception("Neither hard_update_every_N_updates nor soft_update_coefficient " +
+                            "were specified - please specify exactly one of the two.")
+        elif hard_update_every_N_updates != None and soft_update_coefficient != None:
+            raise Exception("Both hard_update_every_N_updates and soft_update_coefficient " +
+                            "were specified - please specify exactly one of the two.")
+        else:
+            if hard_update_every_N_updates != None:
+                try: self.hard_update_every_N_updates = int(hard_update_every_N_updates)
+                except: raise Exception("hard_update_every_N_updates must be an integer!")
+                self.soft_update_coefficient = soft_update_coefficient
+            elif soft_update_coefficient != None:
+                self.hard_update_every_N_updates = hard_update_every_N_updates
+                try: self.soft_update_coefficient = float(soft_update_coefficient)
+                except: raise Exception("soft_update_coefficient must be a float!")
+                
+            
         self.discrete_action_size = discrete_action_size
         self.device = self.set_device()
         self.discount = d_r
@@ -50,6 +86,8 @@ class DoubleDeepQNetwork:
             ).to(self.device)
 
         self.optim = optim.Adam(self.dnn_policy.parameters(), lr=l_r)
+
+        self.dnn_update_counter = 0
     
     def set_device(self):
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -82,6 +120,13 @@ class DoubleDeepQNetwork:
         
     # Updates the algorithm at the end of episode
     def update(self, buffer : NdArrayBuffer):
+        """
+        Updates the DDQN algorithms based on the given buffer.
+        Returns the loss obtained in this update loop.
+
+        :param NdArrayBuffer buffer: The buffer we use to update the algorithm.
+        :return float loss: Returns the loss within this update.
+        """
         BATCH_SIZE = 32
         
         # sample a minibatch of transitions from the buffer
@@ -116,7 +161,43 @@ class DoubleDeepQNetwork:
 
         # update the target dnn appropriately after one update
         self._update_target()
+
+        return loss.item()
             
     # Updates the target dnn by setting its values equal to that of the policy dnn
     def _update_target(self):
-        self.dnn_target.load_state_dict(self.dnn_policy.state_dict())
+        # do hard update
+        if self.hard_update_every_N_updates != None:
+            self.dnn_update_counter += 1
+            if self.dnn_update_counter % self.hard_update_every_N_updates == 0:
+                self.dnn_target.load_state_dict(self.dnn_policy.state_dict())
+        # or soft update
+        elif self.soft_update_coefficient != None:
+            for param, target_param in zip(self.dnn_policy.parameters(), self.dnn_target.parameters()):
+                target_param.data.copy_(self.soft_update_coefficient * 
+                                        param.data + 
+                                        (1 - self.soft_update_coefficient) * 
+                                        target_param.data)
+
+# Below is code useful when discretizing continuous environments such that we can apply DDQN 
+ACTION_DISCRETIZED_NUMBER = 100
+MAX, MIN = 0.5, -0.5
+
+@staticmethod
+def convert_discrete_action_to_continuous(discrete_actions : torch.tensor) -> np.ndarray:
+    """
+    Input tensor is of shape (batch, 39) where each of the 39 values are an integer
+    between 0 and (ACTION_DISCRETIZED_NUMBER - 1).
+    We convert these back into floats of value between MAX and MIN. 
+    """
+    continuous_actions = discrete_actions * ((MAX - MIN) / ACTION_DISCRETIZED_NUMBER) + MIN
+    return continuous_actions
+
+@staticmethod
+def convert_continuous_action_to_discrete(continuous_actions : torch.tensor) -> np.ndarray:
+    """
+    Input tensor is of shape (batch, 39) where each of the 39 values are floats between MIN 
+    and MAX. We convert these into value between 0 and (ACTION_DISCRETIZED_NUMBER = 1).
+    """
+    discrete_actions = (continuous_actions - MIN) // ((MAX - MIN) / ACTION_DISCRETIZED_NUMBER)
+    return discrete_actions

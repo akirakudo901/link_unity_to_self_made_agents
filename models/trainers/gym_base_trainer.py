@@ -211,6 +211,7 @@ class GymOffPolicyBaseTrainer:
                                                                                  obs_shape=self.env.observation_space.shape, 
                                                                                  act_shape=self.env.action_space.shape)
             cumulative_rewards : List[float] = []
+            loss_history : List[float] = []
 
             # first populate the buffer with num_initial_experiences experiences
             print(f"Generating {num_initial_experiences} initial experiences...")
@@ -243,7 +244,8 @@ class GymOffPolicyBaseTrainer:
                 )
                 
                 experiences.extend_buffer(new_exp)
-                learning_algorithm.update(experiences)
+                loss = learning_algorithm.update(experiences)
+                loss_history.append(loss)
 
                 # evaluate sometimes
                 if (i + 1) % (evaluate_every_N_steps) == 0:
@@ -274,6 +276,11 @@ class GymOffPolicyBaseTrainer:
                 plt.clf()
                 plt.plot(range(0, len(cumulative_rewards)*evaluate_every_N_steps, evaluate_every_N_steps), cumulative_rewards)
                 plt.savefig(f"{task_name}_cumulative_reward_fig.png")
+                plt.show()
+
+                plt.clf()
+                plt.plot(range(0, len(loss_history)), loss_history)
+                plt.savefig(f"{task_name}_loss_history_fig.png")
                 plt.show()
             except ValueError:
                 print("\nPlot failed on interrupted training.")

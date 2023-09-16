@@ -10,18 +10,8 @@ import gymnasium
 import numpy as np
 import torch
 
-from policy_learning_algorithms.soft_actor_critic import SoftActorCritic
-from trainers.gym_base_trainer import GymOffPolicyBaseTrainer
-
-SAVE_AFTER_TRAINING = True
-
-# set up a device first
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-# device = torch.device('cpu')
-print('Using device:', device)
-print()
-
-cpu_device = torch.device("cpu")
+from models.policy_learning_algorithms.soft_actor_critic import SoftActorCritic
+from models.trainers.gym_base_trainer import GymOffPolicyBaseTrainer
 
 # create the environment and determine specs about it
 env = gymnasium.make("Pendulum-v1")#, render_mode="human")
@@ -39,12 +29,11 @@ learning_algorithm = SoftActorCritic(
     temperature=0.25,
     qnet_update_smoothing_coefficient=0.005,
     observation_size=observation_size,
-    action_size=action_size, 
+    action_size=action_size,
     action_ranges=action_ranges,
     pol_eval_batch_size=512,
     pol_imp_batch_size=512,
-    update_qnet_every_N_gradient_steps=1,
-    device=device
+    update_qnet_every_N_gradient_steps=1
     # leave the optimizer as the default = Adam
     )
 
@@ -73,9 +62,8 @@ def uniform_random_sampling(actions, env):
 
 def no_exploration(actions, env):
     # since exploration is inherent in SAC, we don't need epsilon to do anything
-    # we however need to convert torch.tensor back to numpy arrays.
     if type(actions) == type(torch.tensor([0])):
-        return actions.detach().to(cpu_device).numpy()
+        return actions.numpy()
     elif type(actions) == type(np.array([0])):
         return actions
     else:
@@ -90,7 +78,7 @@ l_a = trainer.train(
     evaluate_every_N_steps=NUM_TRAINING_STEPS // 30,
     initial_exploration_function=uniform_random_sampling,
     training_exploration_function=no_exploration,
-    save_after_training=SAVE_AFTER_TRAINING,
+    save_after_training=True,
     task_name=TASK_NAME,
     render_evaluation=False
     )
