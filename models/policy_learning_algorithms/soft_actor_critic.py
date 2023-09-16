@@ -207,8 +207,8 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.distributions.normal import Normal
 
-from policy_learning_algorithms.policy_learning_algorithm import OffPolicyLearningAlgorithm
-from trainers.gym_base_trainer import Buffer
+from models.policy_learning_algorithms.policy_learning_algorithm import OffPolicyLearningAlgorithm
+from models.trainers.gym_base_trainer import Buffer
 
 class SoftActorCritic(OffPolicyLearningAlgorithm):
 

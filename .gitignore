@@ -3,3 +3,5 @@
 **/__pycache__
 # ignoring all images renderd to show reward
 *.png
+# ignoring all trained algorithms
+/trained_algorithms

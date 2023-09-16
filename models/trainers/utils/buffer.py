@@ -11,7 +11,7 @@ from typing import List
 
 import numpy as np
 
-from trainers.utils.experience import Experience
+from models.trainers.utils.experience import Experience
 
 class Buffer(ABC):
     """

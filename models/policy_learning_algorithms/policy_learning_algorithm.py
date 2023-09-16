@@ -5,6 +5,17 @@ Base abstract class for whatever policy learning algorithm we use.
 from abc import ABC, abstractmethod
 
 class OffPolicyLearningAlgorithm(ABC):
+
+    @abstractmethod
+    def __init__(self, observation_dim_size, action_dim_size):
+        """
+        A generic learning algorithm initializer.
+
+        :param int observation_dim_size: The dimension size of the observation space. 
+        :param int action_dim_size: The dimension size of the action space.
+        """
+        self.obs_dim_size = observation_dim_size
+        self.act_dim_size = action_dim_size
     
     @abstractmethod
     def update(self, experiences):

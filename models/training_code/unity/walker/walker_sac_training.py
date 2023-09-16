@@ -4,10 +4,11 @@ An integration of the Walker environment with SAC.
 
 from mlagents_envs.environment import BaseEnv, UnityEnvironment
 from mlagents_envs.registry import default_registry
+import numpy as np
 import torch
 
-from policy_learning_algorithms.soft_actor_critic import SoftActorCritic
-from trainers.unityenv_base_trainer import OffPolicyBaseTrainer
+from models.policy_learning_algorithms.soft_actor_critic import SoftActorCritic
+from models.trainers.unityenv_base_trainer import OffPolicyBaseTrainer
 
 SAVE_AFTER_TRAINING = True
 
@@ -39,6 +40,7 @@ learning_algorithm = SoftActorCritic(
     policy_learning_rate=1e-3, 
     discount=0.99, 
     temperature=0.2,
+    qnet_update_smoothing_coefficient=0.005,
     observation_size=observation_size,
     action_size=action_size, 
     action_ranges=(((-1., 1.),)*action_size),
@@ -49,7 +51,7 @@ learning_algorithm = SoftActorCritic(
     # leave the optimizer as the default = Adam
     )
 
-trainer = OffPolicyBaseTrainer(env, behavior_name, learning_algorithm)
+trainer = OffPolicyBaseTrainer(env, behavior_name)
 
 # The number of training steps that will be performed
 NUM_TRAINING_STEPS = 10000
@@ -73,12 +75,13 @@ def uniform_random_sampling(actions, env):
                         learning_algorithm.policy.action_avgs.detach().cpu())
     return adjusted_actions.numpy()
 
-def no_exploration(actions : torch.tensor, env : BaseEnv):
+def no_exploration(actions : np.ndarray, env : BaseEnv):
     # since exploration is inherent in SAC, we don't need epsilon to do anything
-    # we however need to convert torch.tensor back to numpy arrays.
-    return actions.detach().to(cpu_device).numpy()
+    # SAC also returns an np.ndarray upon call
+    return actions
 
 l_a = trainer.train(
+    learning_algorithm=learning_algorithm,
     num_training_steps=NUM_TRAINING_STEPS, 
     num_new_experience=NUM_NEW_EXP, 
     max_buffer_size=BUFFER_SIZE,

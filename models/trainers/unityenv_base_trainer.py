@@ -8,7 +8,9 @@ by making a trainer which inherits from it.
               to collect experience and update the algorithm
 """
 
+import logging
 import random
+import traceback
 from typing import Dict, List, NamedTuple, Tuple
 
 import numpy as np
@@ -46,12 +48,10 @@ class OnPolicyBaseTrainer:
     def __init__(
             self, 
             env : BaseEnv, 
-            behavior_name : BehaviorName,
-            learning_algorithm
+            behavior_name : BehaviorName
         ):
         """
-        Creates an on policy base trainer with a given BaseEnv, BehaviorName specifying 
-        agent and a learning algorithm which holds a policy.
+        Creates an on policy base trainer with a given BaseEnv and BehaviorName specifying agent.
         Enables the generation of the experience for a single time step and return it
         to be used for on-policy learning. 
         TODO! (shall I include an entry determining how exploration is handled?)
@@ -59,12 +59,9 @@ class OnPolicyBaseTrainer:
         :param BaseEnv env: The Unity environment used.
         :param BehaviorName behavior_name: The BehaviorName of interest 
          *see low level Python API documentation for details on BehaviorName
-        :param learning_algorithm: The algorithm which provides policy, evaluating 
-        actions given states per batches.
         """
         self.env = env
         self.behavior_name = behavior_name
-        self.learning_algorithm = learning_algorithm
 
         self.trajectory_by_agent : Dict[int, Trajectory] = {}
         self.cumulative_reward_by_agent : Dict[int, float] = {}
@@ -74,18 +71,21 @@ class OnPolicyBaseTrainer:
     def generate_experience(
         self,
         exploration_function,
+        learning_algorithm,
         behavior_name : BehaviorName=None
         ) -> Tuple[Buffer, List[Trajectory], List[float]]:
         """
-        Executes a single step in the environment for every agent with behavior_name, 
-        storing the last state & action, trajectory so far, and cumulative rewards for 
-        each agent. 
+        Executes a single step in the environment for every agent with behavior_name and
+        according to policy by learning_algorithm, storing the last state & action, 
+        trajectory so far, and cumulative rewards for each agent. 
         Returns the experience of agents in the last step, and trajectories & cumulative rewards
         for agents who reached a terminal step.
         The experience involves some exploration (vs. exploitation) which behavior 
         is determined by exploration_function.
         :param exploration_function: A function which controls how exploration is handled 
         during collection of experiences.
+        :param learning_algorithm: The algorithm which provides policy, evaluating 
+        actions given states per batches.
         :param BehaviorName behavior_name: The behavior_name of the agent for which we 
         generate the experience.
         :returns Buffer experiences: The experiences of every agent that took action in
@@ -180,7 +180,7 @@ class OnPolicyBaseTrainer:
             # promote exploration of the world
             
             best_actions = exploration_function(
-                self.learning_algorithm(decision_steps.obs[0]), 
+                learning_algorithm(decision_steps.obs[0]), 
                 self.env
             )
             
@@ -214,7 +214,6 @@ class OffPolicyBaseTrainer(OnPolicyBaseTrainer):
             self, 
             env : BaseEnv, 
             behavior_name : BehaviorName,
-            learning_algorithm
         ):
         """
         Creates an off policy trainer with a given BaseEnv, BehaviorName specifying 
@@ -225,26 +224,27 @@ class OffPolicyBaseTrainer(OnPolicyBaseTrainer):
         :param BaseEnv env: The Unity environment used.
         :param BehaviorName behavior_name: The BehaviorName of interest 
          *see low level Python API documentation for details on BehaviorName
-        :param learning_algorithm: The algorithm which provides policy, evaluating 
-        actions given states per batches.
         """
-        super().__init__(env, behavior_name, learning_algorithm)
+        super().__init__(env, behavior_name)
 
     def generate_batch_of_experiences(
             self, 
             buffer_size : int,
             exploration_function,
+            learning_algorithm,
             behavior_name : BehaviorName
         ) -> Tuple[Buffer, float]:
         """
         Generates and returns a buffer containing "buffer_size" random experiences 
-        sampled from running the policy in the environment.
+        sampled from running the policy from learning_algorithm in the environment.
         The experience involves some exploration (vs. exploitation) which behavior 
         is determined by exploration_function.
 
         :param int buffer_size: The size of the buffer to be returned.
         :param exploration_function: A function which controls how exploration is handled 
         during collection of experience.
+        :param learning_algorithm: The algorithm which provides policy, evaluating 
+        actions given states per batches.
         :param BehaviorName behavior_name: The behavior_name of the agent for which we 
         generate the experience.
         :returns Buffer buffer: The buffer containing buffer_size experiences.
@@ -259,6 +259,7 @@ class OffPolicyBaseTrainer(OnPolicyBaseTrainer):
         while len(buffer) < buffer_size:
             _, new_trajectories, new_cumulative_rewards = self.generate_experience(
                 exploration_function=exploration_function,
+                learning_algorithm=learning_algorithm,
                 behavior_name=behavior_name
             )
             
@@ -271,6 +272,7 @@ class OffPolicyBaseTrainer(OnPolicyBaseTrainer):
     
     def train(
             self,
+            learning_algorithm,
             num_training_steps : int,
             num_new_experience : int,
             max_buffer_size : int,
@@ -285,6 +287,8 @@ class OffPolicyBaseTrainer(OnPolicyBaseTrainer):
         Trains the learning algorithm in the environment with given specifications, returning 
         the trained algorithm.
 
+        :param learning_algorithm: The algorithm which provides policy, evaluating 
+        actions given states per batches.
         :param int num_training_steps: The number of steps we proceed to train the algorithm.
         :param int num_new_experience: The number of new experience we collect minimum before
         every update for our algorithm.
@@ -311,6 +315,7 @@ class OffPolicyBaseTrainer(OnPolicyBaseTrainer):
             init_exp, _ = self.generate_batch_of_experiences(
                 buffer_size=num_initial_experiences,
                 exploration_function=initial_exploration_function,
+                learning_algorithm=learning_algorithm,
                 behavior_name=self.behavior_name
             )
             print("Generation successful!")
@@ -326,6 +331,7 @@ class OffPolicyBaseTrainer(OnPolicyBaseTrainer):
                 new_exp, _ = self.generate_batch_of_experiences(
                     buffer_size=num_new_experience,
                     exploration_function=training_exploration_function,
+                    learning_algorithm=learning_algorithm,
                     behavior_name=self.behavior_name
                 )
                 
@@ -333,7 +339,7 @@ class OffPolicyBaseTrainer(OnPolicyBaseTrainer):
                 random.shuffle(experiences)
                 if len(experiences) > max_buffer_size:
                     experiences = experiences[:max_buffer_size]
-                self.learning_algorithm.update(experiences)
+                learning_algorithm.update(experiences)
                 
                 # evaluate sometimes
                 if (i + 1) % (evaluate_every_N_steps) == 0:
@@ -341,22 +347,25 @@ class OffPolicyBaseTrainer(OnPolicyBaseTrainer):
                     cumulative_rewards.append(cumulative_reward)
                     print(f"Training loop {i+1} successfully ended: reward={cumulative_reward}.\n")
                 
-            if save_after_training: self.learning_algorithm.save(task_name)
+            if save_after_training: learning_algorithm.save(task_name)
 
         except KeyboardInterrupt:
             print("\nTraining interrupted, continue to next cell to save to save the model.")
+        except Exception:
+            logging.error(traceback.format_exc())
         finally:
             self.env.close()
 
             # Show the training graph
             try:
+                plt.clf()
                 plt.plot(range(num_training_steps), cumulative_rewards)
                 plt.savefig(f"{task_name}_cumulative_reward_fig.png")
                 plt.show()
             except ValueError:
                 print("\nPlot failed on interrupted training.")
                 
-            return self.learning_algorithm
+            return learning_algorithm
     
     def evaluate(self, num_samples : int = 1):
         return 0

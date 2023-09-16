@@ -172,8 +172,4 @@ from trainers.unityenv_base_trainer import Buffer, Experience
 import gymnasium
 
 env = gymnasium.make("CartPole-v1")
-env.reset()
-env.step(0)
-print("First one works fine!")
-env.step(np.array(0))
-print("Second one works fine!")
+print(env.observation_space.shape, env.action_space.shape)

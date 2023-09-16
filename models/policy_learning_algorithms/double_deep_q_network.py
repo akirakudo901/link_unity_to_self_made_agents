@@ -3,18 +3,15 @@ A DDQN algorithm to be used as learning algorithm.
 """
 
 from datetime import datetime
-import random
 
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
 
-from trainers.gym_base_trainer import NdArrayBuffer
+from models.trainers.gym_base_trainer import NdArrayBuffer
 
-DNN_SAVE_FOLDER = "trained_algorithms/DNN"
-
-UPDATE_TARGET_DNN_EVERY_N = 4096
+DNN_SAVE_FOLDER = "trained_algorithms/DDQN"
 
 class DoubleDeepQNetwork:
 
@@ -37,23 +34,27 @@ class DoubleDeepQNetwork:
             return x
     
 
-    def __init__(self, observation_size, action_size, device, l_r=0.1, d_r=0.95):
+    def __init__(self, observation_dim_size, discrete_action_size, l_r=0.1, d_r=0.95):
+        
+        self.discrete_action_size = discrete_action_size
+        self.device = self.set_device()
         self.discount = d_r
-
-        self.obs_size = observation_size
-        self.act_size = action_size
-        self.device = device
         
         self.dnn_policy = DoubleDeepQNetwork.DNN(
-            input_size=observation_size, 
-            output_size=action_size
+            input_size=observation_dim_size, 
+            output_size=discrete_action_size
             ).to(self.device)
         self.dnn_target = DoubleDeepQNetwork.DNN(
-            input_size=observation_size, 
-            output_size=action_size
+            input_size=observation_dim_size, 
+            output_size=discrete_action_size
             ).to(self.device)
 
         self.optim = optim.Adam(self.dnn_policy.parameters(), lr=l_r)
+    
+    def set_device(self):
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        print('Using device:', device)
+        return device
     
     def __call__(self, state):
         return self.get_optimal_action(state)
@@ -83,8 +84,6 @@ class DoubleDeepQNetwork:
     def update(self, buffer : NdArrayBuffer):
         BATCH_SIZE = 32
         
-        loss_fn = nn.MSELoss()
-
         # sample a minibatch of transitions from the buffer
         np_obs, np_act, np_rew, np_don, np_next_obs = buffer.sample_random_experiences(num_samples=BATCH_SIZE) #TODO no seed, how to incorporate it?
         states      = torch.from_numpy(np_obs)
@@ -92,18 +91,24 @@ class DoubleDeepQNetwork:
         rewards     = torch.from_numpy(np_rew)
         dones       = torch.from_numpy(np_don)
         next_states = torch.from_numpy(np_next_obs)
-        # get the corresponding updated q val
-        updated_q = (rewards + 
-                     (1 - dones)
+
+        # calculate the actual Q values
+        actual_q = (rewards + 
+                     (1 - dones) *
                      self.discount * 
                      torch.max(self.dnn_target(next_states).detach(), dim=1).values)
-        # from action, make a mask 
-        mask = torch.zeros(len(states), ACTION_NUM)
-        mask.scatter_(1, actions.unsqueeze(1), 1)
+        
+        # calculate the predicted Q values
+        pred_q = self.dnn_policy(states)
+        mask = torch.zeros(
+            pred_q.shape
+            ).scatter_(1, actions.unsqueeze(1).to(torch.int64), 1.)
         # apply mask to obtain the relevant predictions for current states
-        compared_q = torch.sum(self.dnn_policy(states) * mask, dim=1)
-        # calculate loss)
-        loss = loss_fn(compared_q, updated_q)
+        compared_q = torch.sum(pred_q * mask, dim=1)
+        
+        # calculate loss
+        loss_fn = nn.MSELoss()
+        loss = loss_fn(compared_q, actual_q)
         # propagate the result
         self.optim.zero_grad()
         loss.backward()
