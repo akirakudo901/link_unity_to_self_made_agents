@@ -4,6 +4,7 @@ A DDQN algorithm to be used as learning algorithm.
 
 from datetime import datetime
 
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn as nn
@@ -88,6 +89,7 @@ class DoubleDeepQNetwork:
         self.optim = optim.Adam(self.dnn_policy.parameters(), lr=l_r)
 
         self.dnn_update_counter = 0
+        self.loss_history = [] # a List of floats
     
     def set_device(self):
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -161,8 +163,7 @@ class DoubleDeepQNetwork:
 
         # update the target dnn appropriately after one update
         self._update_target()
-
-        return loss.item()
+        self.loss_history.append(loss.item())
             
     # Updates the target dnn by setting its values equal to that of the policy dnn
     def _update_target(self):
@@ -178,6 +179,12 @@ class DoubleDeepQNetwork:
                                         param.data + 
                                         (1 - self.soft_update_coefficient) * 
                                         target_param.data)
+    
+    def show_loss_history(self, task_name):
+        plt.clf()
+        plt.plot(range(0, len(self.loss_history)), self.loss_history)
+        plt.savefig(f"{task_name}_loss_history_fig.png")
+        plt.show()
 
 # Below is code useful when discretizing continuous environments such that we can apply DDQN 
 ACTION_DISCRETIZED_NUMBER = 100

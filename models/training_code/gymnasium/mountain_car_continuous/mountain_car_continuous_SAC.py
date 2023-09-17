@@ -12,7 +12,7 @@ import numpy as np
 import torch
 
 from policy_learning_algorithms.soft_actor_critic import SoftActorCritic
-from trainers.gym_base_trainer import GymOffPolicyBaseTrainer
+from trainers.gym.gym_base_trainer import GymOffPolicyBaseTrainer
 
 SAVE_AFTER_TRAINING = True
 

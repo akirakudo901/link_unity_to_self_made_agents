@@ -88,7 +88,7 @@ class GymOffPolicyBaseTrainer:
          - "info" which provides additional information
         """
         # if self.last_action is None (beginning of training), we reset env and take a step first
-        if self.last_action == None:
+        if type(self.last_action) == type(None):
             self.last_observation, _ = self.env.reset()
             self.last_action = exploration_function(
                 np.squeeze( #adjust, as output from learning_algo always has a batch dimension
@@ -211,7 +211,6 @@ class GymOffPolicyBaseTrainer:
                                                                                  obs_shape=self.env.observation_space.shape, 
                                                                                  act_shape=self.env.action_space.shape)
             cumulative_rewards : List[float] = []
-            loss_history : List[float] = []
 
             # first populate the buffer with num_initial_experiences experiences
             print(f"Generating {num_initial_experiences} initial experiences...")
@@ -244,12 +243,11 @@ class GymOffPolicyBaseTrainer:
                 )
                 
                 experiences.extend_buffer(new_exp)
-                loss = learning_algorithm.update(experiences)
-                loss_history.append(loss)
+                learning_algorithm.update(experiences)
 
                 # evaluate sometimes
                 if (i + 1) % (evaluate_every_N_steps) == 0:
-                    cumulative_reward = self.evaluate(learning_algorithm, 1, render=render_evaluation)
+                    cumulative_reward = self.evaluate(learning_algorithm, 3, render=render_evaluation)
                     cumulative_rewards.append(cumulative_reward)
                     print(f"Training loop {i+1}/{num_training_steps} successfully ended: reward={cumulative_reward}.\n")
                 
@@ -277,11 +275,8 @@ class GymOffPolicyBaseTrainer:
                 plt.plot(range(0, len(cumulative_rewards)*evaluate_every_N_steps, evaluate_every_N_steps), cumulative_rewards)
                 plt.savefig(f"{task_name}_cumulative_reward_fig.png")
                 plt.show()
+                learning_algorithm.show_loss_history(task_name=task_name)
 
-                plt.clf()
-                plt.plot(range(0, len(loss_history)), loss_history)
-                plt.savefig(f"{task_name}_loss_history_fig.png")
-                plt.show()
             except ValueError:
                 print("\nPlot failed on interrupted training.")
                 
@@ -298,14 +293,9 @@ class GymOffPolicyBaseTrainer:
         :param bool render: Whether to render the enviroment during evaluation.
         Defaults to True.
         """
-        env = self.env_eval_render if render else self.env_eval_no_render
 
-        # same thing to sample n cumulative rewards to sum and divide by n, 
-        # and to sample a single cumulative reward for all runs and divide by n
-        cumulative_reward = 0.0
-
-        for _ in range(num_samples):
-
+        def evaluate_on_environment(env):
+            cum_rew = 0.0
             s, _ = env.reset() #reset the environment
             terminated = truncated = False
             
@@ -319,6 +309,20 @@ class GymOffPolicyBaseTrainer:
 
                 # update env accordingly
                 s, r, terminated, truncated, _ = env.step(a)
-                cumulative_reward += r
+                cum_rew += r
             
+            return cum_rew
+        
+        # same thing to sample n cumulative rewards to sum and divide by n, 
+        # and to sample a single cumulative reward for all runs and divide by n
+        cumulative_reward = 0.0
+        
+        # visualize and render the first evaluation loop
+        first_env = self.env_eval_render if render else self.env_eval_no_render
+        cumulative_reward += evaluate_on_environment(first_env)
+        
+        # remaining evaluation without rendering
+        for _ in range(num_samples - 1):
+            cumulative_reward += evaluate_on_environment(self.env_eval_no_render)
+
         return cumulative_reward / num_samples

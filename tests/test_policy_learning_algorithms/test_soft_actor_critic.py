@@ -101,7 +101,7 @@ class TestSoftActorCritic_Policy(unittest.TestCase):
             q_net_learning_rate=1e-3, policy_learning_rate=1e-3, discount=DISCOUNT, 
             temperature=TEMPERATURE, qnet_update_smoothing_coefficient=TAU,
             observation_size=OBSERVATION_SIZE, action_size=ACTION_SIZE, 
-            device="cpu", action_ranges=((-1., 1.), (-2., 3.), (0., 1.), (-10., 10.)),
+            action_ranges=((-1., 1.), (-2., 3.), (0., 1.), (-10., 10.)),
             pol_eval_batch_size=8, pol_imp_batch_size=8,
             update_qnet_every_N_gradient_steps=1
             )
@@ -166,7 +166,7 @@ class TestSoftActorCritic_Policy(unittest.TestCase):
         # compare that result's shape with the shape of target which we just computed
         self.assertEqual(tuple(targets.shape), tuple(actual.shape))
     
-    def test_compute_exponentiated_qval(self):
+    def test_compute_policy_val(self):
         # TODO ONLY TESTING IF IT RUNS
         OBSERVATION_SIZE, ACTION_SIZE = 3, 4
         DISCOUNT, TEMPERATURE, TAU = 0.8, 0.6, 0.005
@@ -175,7 +175,7 @@ class TestSoftActorCritic_Policy(unittest.TestCase):
             q_net_learning_rate=1e-3, policy_learning_rate=1e-3, discount=DISCOUNT, 
             temperature=TEMPERATURE, qnet_update_smoothing_coefficient=TAU,
             observation_size=OBSERVATION_SIZE, action_size=ACTION_SIZE,
-            device="cpu", action_ranges=((-1., 1.), (-2., 3.), (0., 1.), (-10., 10.)),
+            action_ranges=((-1., 1.), (-2., 3.), (0., 1.), (-10., 10.)),
             pol_eval_batch_size=8, pol_imp_batch_size=8,
             update_qnet_every_N_gradient_steps=1
             )
@@ -194,30 +194,29 @@ class TestSoftActorCritic_Policy(unittest.TestCase):
         # print("list_batch_single_action_sample[0].shape: ", list_batch_single_action_sample[0].shape)
         self.assertEqual((2, 4), tuple(list_batch_single_action_sample[0].shape))
         # compute the Q-value relative to each q-net
-        qnet1_exp_val = torch.cat(
+        qnet1_val = torch.cat(
             [qnet1(obs=batch_obs, actions=batch_single_action) for batch_single_action in list_batch_single_action_sample],
             dim=1
         )
-        qnet2_exp_val = torch.cat(
+        qnet2_val = torch.cat(
             [qnet2(obs=batch_obs, actions=batch_single_action) for batch_single_action in list_batch_single_action_sample],
             dim=1
         )
-        # print("qnet1_exp_val: ", qnet1_exp_val, "qnet1_exp_val.shape: ", qnet1_exp_val.shape)
-        self.assertEqual((2, 2), tuple(qnet1_exp_val.shape))
+        # print("qnet1_val: ", qnet1_val, "qnet1_val.shape: ", qnet1_val.shape)
+        self.assertEqual((2, 2), tuple(qnet1_val.shape))
         # take the minimum of the two q-net values for each action sample
-        exp_val_min = torch.minimum(qnet1_exp_val, qnet2_exp_val)
-        # print("exp_val_min: ", exp_val_min, "exp_val_min.shape: ", exp_val_min.shape)
-        self.assertEqual((2, 2), tuple(exp_val_min.shape))
+        val_min = torch.minimum(qnet1_val, qnet2_val)
+        # print("val_min: ", val_min, "val_min.shape: ", val_min.shape)
+        self.assertEqual((2, 2), tuple(val_min.shape))
         # average this minimum over all action samples
-        exp_val_mean = torch.mean(exp_val_min, dim=1, dtype=torch.float32)
-        # print("exp_val_mean: ", exp_val_mean, "exp_val_mean.shape: ", exp_val_mean.shape)
-        self.assertEqual((2, ), tuple(exp_val_mean.shape))
+        val_mean = torch.mean(val_min, dim=1, dtype=torch.float32)
+        # print("val_mean: ", val_mean, "val_mean.shape: ", val_mean.shape)
+        self.assertEqual((2, ), tuple(val_mean.shape))
 
-        
-        # compute the exact same process using _compute_exponentiated_qval
-        actual = testSAC._compute_exponentiated_qval(batch_obs, batch_action_samples)
+        # compute the exact same process using _compute_policy_val
+        actual = testSAC._compute_policy_val(batch_obs, batch_action_samples)
         # compare that result's shape with the shape of target which we just computed
-        self.assertEqual(tuple(exp_val_mean.shape), tuple(actual.shape))
+        self.assertEqual(tuple(val_mean.shape), tuple(actual.shape))
 
     def test_update(self):
         # TODO ONLY TESTING IF IT RUNS
@@ -228,7 +227,7 @@ class TestSoftActorCritic_Policy(unittest.TestCase):
             q_net_learning_rate=1e-3, policy_learning_rate=1e-3, discount=DISCOUNT, 
             temperature=TEMPERATURE, qnet_update_smoothing_coefficient=TAU, 
             observation_size=OBSERVATION_SIZE, action_size=ACTION_SIZE,
-            device="cpu", action_ranges=((-1., 1.), (-2., 3.), (0., 1.), (-10., 10.)),
+            action_ranges=((-1., 1.), (-2., 3.), (0., 1.), (-10., 10.)),
             pol_eval_batch_size=8, pol_imp_batch_size=8,
             update_qnet_every_N_gradient_steps=1
             )

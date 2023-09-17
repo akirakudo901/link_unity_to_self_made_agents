@@ -7,6 +7,7 @@ from datetime import datetime
 import os
 from typing import Tuple
 
+import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -129,6 +130,11 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
             #     )
             self.sd_layer = nn.Linear(fc_out, action_size)
 
+            # TODO TO REMOVE
+            self.std_history, self.mean_history, self.stackout_history = [], [], []
+            self.history_obs = None
+            # END TO REMOVE
+
         def forward(self, 
                     obs : torch.tensor,
                     num_samples : int = 1,
@@ -176,18 +182,47 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
                         self.action_multiplier.to(t_device).detach() + 
                         self.action_avgs.to(t_device).detach())
 
+            # TODO TO REMOVE
+            if self.history_obs == None:
+                self.history_obs = obs[:3]
+            # END TO REMOVE
+
             # we obtain the mean myu and sd sigma of the gaussian distribution
             stack_out = self.linear_relu_stack(obs)
+
+            hist_stackout = self.linear_relu_stack(self.history_obs) # TODO TO REMOVE
+            self.stackout_history.append(
+                [hist_stackout[i].detach().numpy() for i in range(self.history_obs.shape[0])]
+                ) # TODO TO REMOVE
+            
             myus = self.mean_layer(stack_out)
+
+            hist_mean = self.mean_layer(hist_stackout) # TODO TO REMOVE
+            self.mean_history.append(
+                [hist_mean[i].detach().numpy() for i in range(self.history_obs.shape[0])]
+                ) # TODO TO REMOVE
 
             #TODO EXPERIMENTAL
             # sigmas = torch.abs(self.sd_layer(stack_out)) #TODO can we use abs here? Or is exp better?
             # sigmas = torch.exp(self.sd_layer(stack_out)) #squash to enforce positive sigmas values
 
+            # ONE WAY TO DO IT (FROM SPINNING UP?)
             LOG_STD_MIN, LOG_STD_MAX = -5, 2
             log_std = torch.tanh(self.sd_layer(stack_out)) # another way to do it: tanh and scaling
             log_std = LOG_STD_MIN + 0.5 * (LOG_STD_MAX - LOG_STD_MIN) * (log_std + 1)
             sigmas = torch.exp(log_std)
+
+            hist_sigma = self.sd_layer(hist_stackout) # TODO TO REMOVE
+            self.std_history.append(
+                [hist_sigma[i].detach().numpy() for i in range(self.history_obs.shape[0])]
+                ) # TODO TO REMOVE
+            # ONE WAY TO DO IT END
+
+            # ANOTHER WAY TO DO IT (FROM https://github.com/zhihanyang2022/pytorch-sac/blob/main/params_pool.py)
+            # LOG_STD_MAX = 2
+            # LOG_STD_MIN = -20
+
+            # sigmas = torch.exp(torch.clamp(self.sd_layer(stack_out), min=LOG_STD_MIN, max=LOG_STD_MAX))
             #END EXPERIMENTAL
             
             # print("myus: ", myus, "myus.shape: ", myus.shape)
@@ -216,18 +251,39 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
                 )
             
             # TODO remove
-            # if log_probs.isinf().any():
+            # if (squashed.isinf().any() or squashed.isnan().any() or 
+            #     log_probs.isinf().any() or log_probs.isnan().any()):
             #     print("Inside policy's forward!")
+            #     print(f"obs is {obs}\n.")
             #     print(f"myus is {myus}\n.")
             #     print(f"sigmas is {sigmas}\n.")
-            #     print(f"actions is {actions}\n.")
-            #     print(f"squashed is {squashed}\n.")
-            #     print(f"pure_log_probabilities is {pure_log_probabilities}\n.")
-            #     print(f"before_correction is {before_correction}\n.")
-            #     print(f"log_probs is {log_probs}\n.")
-            #     print("Done with policy's forward!")
+                # print(f"actions is {actions}\n.")
+                # print(f"squashed is {squashed}\n.")
+                # print(f"pure_log_probabilities is {pure_log_probabilities}\n.")
+                # print(f"before_correction is {before_correction}\n.")
+                # print(f"log_probs is {log_probs}\n.")
+                # print("Done with policy's forward!")
             
             return squashed, log_probs
+        
+        # TODO REMOVE
+        def show_histories_for_debugs(self):
+            def show_plot_and_save(history, nn):
+                plt.clf()
+                plt.plot(range(0, len(history)), history)
+                plt.savefig(f"{nn}_loss_history_fig.png")
+                plt.show()
+            
+            all_std_history = list(zip(*self.std_history))
+            all_stackout_history = list(zip(*self.stackout_history))
+            all_mean_history = list(zip(*self.mean_history))
+
+            for h, nn in (
+                [(all_std_history[i],  f"std_{i}") for i in range(len(all_std_history))] +  
+                [(all_stackout_history[i],  f"stackOut_{i}") for i in range(len(all_stackout_history))] + 
+                [(all_mean_history[i],  f"mean_{i}") for i in range(len(all_mean_history))]
+            ):
+                show_plot_and_save(h, nn)
         
         def _correct_for_squash(self, before : torch.tensor, actions : torch.tensor):
             """
@@ -259,11 +315,22 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
             """
             # compute the trace of the Jacobian of tanh squashing for each action
             # print("before: ", before, "before.shape: ", before.shape)
-            # print("actions: ", actions, "actions.shape: ", actions.shape)
+            # print("actions[:10]: ", actions[:10], "actions.shape: ", actions.shape)
             multiplier = self.action_multiplier.to(actions.device)
-            jacobian_trace = torch.sum(torch.log(multiplier * (1 - torch.tanh(actions).pow(2)) + 1e-6), dim=2)
+            # TODO EXPERIMENTAL
+            # jacobian_trace = torch.sum(torch.log(multiplier * (1 - torch.tanh(actions).pow(2)) + 1e-6), dim=2)
+            
+            # apparently below is numerically equivalent to above but more stable:
+            # https://github.com/tensorflow/probability/blob/main/tensorflow_probability/python/bijectors/tanh.py#L73 
+            jacobian_trace = torch.squeeze((torch.log(torch.tensor(2.)) + 
+                                            2. * 
+                                            (torch.log(multiplier) - 
+                                             actions - 
+                                             torch.nn.functional.softplus(-2. * actions))), dim=1) 
+            # EXPERIMENTAL END
+            # print("jacobian_trace.shape: ", jacobian_trace.shape)
+            
             # jacobian_trace = torch.sum((multiplier * torch.log(1 - torch.tanh(actions).pow(2) + 1e-6)), dim=2) #old code with mistake in position of multipler
-            # jacobian_trace = torch.sum((multiplier * torch.log(1 - torch.tanh(actions).pow(2)) ), dim=2) #TODO OLD IMPLEMENTATION ALLOWED TORCH.LOG TO GO TO -INF, BUT ADDING 1e-6 PREVENTS THAT FROM HAPPENING
             # print("jacobian_trace: ", jacobian_trace, "jacobian_trace.shape: ", jacobian_trace.shape)
             # subtract it from before to yield after
             after = before - jacobian_trace
@@ -271,7 +338,7 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
             
             return after
 
-    def __init__(self, 
+    def __init__(self,
                  q_net_learning_rate : float,
                  policy_learning_rate : float, 
                  discount : float,
@@ -305,18 +372,23 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
         # two q-functions are used to approximate values during training
         self.qnet1 = SoftActorCritic.QNet(observation_size=observation_size, action_size=action_size).to(self.device)
         self.qnet2 = SoftActorCritic.QNet(observation_size=observation_size, action_size=action_size).to(self.device)
-        self.optim_qnet = optimizer(list(self.qnet1.parameters()) + list(self.qnet2.parameters()), lr=q_net_learning_rate)
+        self.optim_qnet1 = optimizer(self.qnet1.parameters(), lr=q_net_learning_rate)
+        self.optim_qnet2 = optimizer(self.qnet2.parameters(), lr=q_net_learning_rate)
         # two target networks are updated less (e.g. every 1000 steps) to compute targets for q-function update
         self.qnet1_tar = SoftActorCritic.QNet(observation_size=observation_size, action_size=action_size).to(self.device)
         self.qnet2_tar = SoftActorCritic.QNet(observation_size=observation_size, action_size=action_size).to(self.device)
         # transfer the weights to sync
-        self._update_target_networks()
+        self._update_target_networks(hard_update=True)
         
         # initialize policy 
         self.policy = SoftActorCritic.Policy(
             observation_size=observation_size, action_size=action_size, action_ranges=action_ranges
             ).to(self.device)
         self.optim_policy = optimizer(self.policy.parameters(), lr=policy_learning_rate)
+
+        self.qnet1_loss_history = [] #List of float
+        self.qnet2_loss_history = [] #List of float
+        self.policy_loss_history = [] #List of float
     
     def set_device(self):
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -335,6 +407,13 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
     def update(self, experiences : Buffer, seed=None):
         # a single experience contained in "experiences" is of the form: 
         # (obs, action, reward, done, next_obs)
+
+        # TODO THIS IS EXPERIMENTAL - REMOVE AS NEEDED
+        # def clip_gradient(net: nn.Module) -> None:
+        #     for param in net.parameters():
+        #         param.grad.data.clamp_(-1, 1)
+        #EXPERIMENTAL END
+
         NUM_EVAL_STEPS = 1
 
         POLICY_EVAL_NUM_EPOCHS = 1
@@ -359,6 +438,16 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
         # for now, we will sample FRESH_ACTION_SAMPLE_SIZE
         # TODO WHAT IS THE BEST WAY TO FRESHLY SAMPLE THOSE?
         fresh_action_samples, fresh_log_probs = self.policy(next_observations, POL_EVAL_FRESH_ACTION_SAMPLE_SIZE, deterministic=False)
+        # if fresh_action_samples.isinf().any() or fresh_action_samples.isnan().any():
+        #     print("After fresh_action_samples!")
+        #     print("next_observations: ", next_observations, "\n")
+            # print("next_observations.shape: ", next_observations.shape, "\n")
+            # print("fresh_action_samples: ", fresh_action_samples, "\n")
+            # print("fresh_action_samples.shape: ", fresh_action_samples.shape, "\n")
+            # print("fresh_log_probs: ", fresh_log_probs, "\n")
+            # print("fresh_log_probs.shape: ", fresh_log_probs.shape, "\n")
+            # print("Done with fresh_action_samples!")
+        
         # print("fresh_action_samples: ", fresh_action_samples, "\n")
         # print("fresh_action_samples.shape: ", fresh_action_samples.shape, "\n")
         # print("fresh_log_probs: ", fresh_log_probs, "\n")
@@ -400,38 +489,54 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
                 
                 # first compute target value for all experiences (terminal ones are only the rewards)
                 targets = self._compute_qnet_target(batch_rewards, batch_dones, batch_nextobs, batch_action_samples, batch_log_probs)
-                # print("targets: ", targets, "targets.shape: ", targets.shape, "\n")
-
+                
                 # then compute prediction value for all experiences
                 predictions1 = torch.squeeze(self.qnet1(obs=batch_obs, actions=batch_actions), dim=1)
                 predictions2 = torch.squeeze(self.qnet2(obs=batch_obs, actions=batch_actions), dim=1)
-                # print("predictions1: ", predictions1, "predictions1.shape: ", predictions1.shape)
                 
                 # finally take loss through MSELoss
                 criterion = nn.MSELoss()
                 loss1 = criterion(predictions1, targets)
                 loss2 = criterion(predictions2, targets)
-                total_loss = loss1 + loss2
-                # print("loss1: ", loss1, "loss1.shape: ", loss1.shape)
+
+                self.qnet1_loss_history.append(loss1.item())
+                self.qnet2_loss_history.append(loss2.item())
                 # backpropagate that loss to update q_nets
-                self.optim_qnet.zero_grad()
-                total_loss.backward()
-                self.optim_qnet.step()
+                self.optim_qnet1.zero_grad()
+                loss1.backward()
+                # clip_gradient(self.qnet1) #TODO EXPERIMENTAL REMOVE AS NEEDED
+                self.optim_qnet1.step()
+
+                self.optim_qnet2.zero_grad()
+                loss2.backward()
+                # clip_gradient(self.qnet2) #TODO EXPERIMENTAL REMOVE AS NEEDED
+                self.optim_qnet2.step()
                 
                 # increment the update counter and update target networks every N gradient steps
                 self.qnet_update_counter += 1
                 if self.qnet_update_counter % self.update_qnet_every_N_gradient_steps == 0:
-                    self._update_target_networks()
+                    self._update_target_networks(hard_update=False)
 
                     
                     # print("Updated qnet!\n") #TODO REMOVE
                     # print("qnet targets[:10]: ", targets[:10], "\nqnet targets.shape: ", targets.shape, "\n")
                     # print("qnet predictions1[:10]: ", predictions1[:10], "\nqnet predictions1.shape: ", predictions1.shape, "\n")
                     # print("qnet loss1: ", loss1, "\nqnet loss1.shape: ", loss1.shape, "\n")
-                    if targets.isnan().any():
-                        raise Exception("Target went to NaN!")
-                    elif predictions1.isnan().any():
-                        raise Exception("Predictions went to NaN!")
+                def went_to_nan_or_inf(tensor, name):
+                    if not (tensor.isnan().any() or tensor.isinf().any()):
+                        return
+                    
+                    print()
+                    if tensor.isnan().any():
+                        raise Exception(f"{name} went to NaN!")
+                    elif tensor.isinf().any():
+                        raise Exception(f"{name} went to Inf!")
+                    
+                went_to_nan_or_inf(targets, "targets")
+                went_to_nan_or_inf(predictions1, "predictions1")
+                went_to_nan_or_inf(loss1, "loss1")
+                went_to_nan_or_inf(loss2, "loss2")
+                    
                 
                 # finally break out of loop if the number of gradient steps exceeds NUM_STEPS
                 policy_evaluation_gradient_step_count += 1
@@ -476,7 +581,8 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
                 
                 # Then, we compute the loss function: which relates the exponentiated distribution of
                 # the q-value function with the current policy's distribution, through KL divergence
-                target_exped_qval = self._compute_exponentiated_qval(batch_obs, batch_action_samples)
+                # target_exped_qval = self._compute_exponentiated_qval(batch_obs, batch_action_samples) #TODO EXPEIRMENTAL
+                target_qval = self._compute_policy_val(batch_obs, batch_action_samples) #TODO EXPEIRMENTAL
                 policy_val = torch.mean(batch_log_probs, dim=1)
 
                 #TODO EXPERIMENTAL TRYING OUT THE CLEAN RL LOSS FUNCTION
@@ -485,79 +591,91 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
                 # loss = criterion(policy_val, target_exped_qval)
 
                 # BELOW IS CLEAN RL
-                target_qval = torch.log(target_exped_qval)
                 loss = ((self.alpha * policy_val) - target_qval).mean()
 
                 #END EXPERIMENTAL
                 
+                self.policy_loss_history.append(loss.item())
+                
                 # then, we improve the policy by minimizing this loss 
                 self.optim_policy.zero_grad()
                 loss.backward()
+                # clip_gradient(self.policy) #TODO EXPERIMENTAL REMOVE AS NEEDED
+
+                if torch.stack([torch.isnan(p.grad.norm()).any() for p in self.policy.parameters()]).any():
+                    print(f"batch_obs: {batch_obs}, shape: {batch_obs.shape}")
+                    print(f"batch_action_samples: {batch_action_samples}, shape: {batch_action_samples.shape}")
+                    print(f"batch_log_probs: {batch_log_probs}, shape: {batch_log_probs.shape}")
+                    print(f"policy_val: {policy_val}, shape: {policy_val.shape}")
+                    print(f"target_qval: {target_qval}, shape: {target_qval.shape}")
+                    print(f"loss: {loss}, shape: {loss.shape}")
+                    
+                    for p in self.policy.parameters():#TODO REMOVE
+                        print(p.grad)#TODO REMOVE
+                    raise Exception("Some gradients were NaN!")
+
                 self.optim_policy.step()
+
+                if torch.stack([torch.isnan(p).any() for p in self.policy.parameters()]).any(): #TODO REMOVE
+                    print(list(self.policy.parameters()))#TODO REMOVE
+                    raise Exception("Some of the model parameters went NaN!")#TODO REMOVE
 
                 # TODO REMOVE
                 self.TEMP_policy_counter += 1 #TODO
-                if self.TEMP_policy_counter % self.update_qnet_every_N_gradient_steps == 0: 
+                # if self.TEMP_policy_counter % self.update_qnet_every_N_gradient_steps == 0: 
                     # print("See policy!", "\n")
                     # # print("policy target_exped_qval[:10]: ", target_exped_qval[:10], "\npolicy target_exped_qval.shape: ", target_exped_qval.shape, "\n")
                     # print("policy target_qval[:10]: ", target_qval[:10], "\npolicy target_qval.shape: ", target_qval.shape, "\n")
                     # print("policy_val[:10]: ", policy_val[:10], "\npolicy_val.shape: ", policy_val.shape, "\n")
-                    # print("policy loss: ", loss, "\npolicy loss.shape: ", loss.shape, "\n")
-                    if target_qval.isnan().any():
-                        raise Exception("Target_qval went to NaN!")
-                    elif policy_val.isnan().any():
-                        raise Exception("Polivy_val went to NaN!")
-
-                # END TOREMOVE
+                    # print("policy loss: ", loss, "\npolicy loss.shape: ", loss.shape, "\n")                        
+                # went_to_nan_or_inf(target_qval, "target_qval")
+                # went_to_nan_or_inf(policy_val, "policy_val")
+                # went_to_nan_or_inf(loss, "loss")                
+                    # END TOREMOVE
 
                 # finally increment the improvement gradient step count
                 policy_improvement_gradient_step_count += 1
                 if policy_improvement_gradient_step_count >= NUM_IMP_STEPS: break
             # also break out of outer loop
-            if policy_improvement_gradient_step_count >= NUM_IMP_STEPS: break 
+            if policy_improvement_gradient_step_count >= NUM_IMP_STEPS: break
                 
-    def _compute_exponentiated_qval(self, batch_obs, batch_action_samples):
+    def _compute_policy_val(self, batch_obs, batch_action_samples):
         # predicted q_val for each qnet of the shape [batch, num_samples]
         qnet1_val = torch.cat([
-                                    self.qnet1(batch_obs, torch.squeeze(batch_action_samples[:, i, :], dim=0))
-                                    for i in range(batch_action_samples.shape[1])
-                                    ],
-                                    dim=1
-                                )
+            self.qnet1(batch_obs, torch.squeeze(batch_action_samples[:, i, :], dim=0))
+            for i in range(batch_action_samples.shape[1])
+            ], dim=1)
         qnet2_val = torch.cat([
-                                    self.qnet2(batch_obs, torch.squeeze(batch_action_samples[:, i, :], dim=0))
-                                    for i in range(batch_action_samples.shape[1])
-                                    ],
-                                    dim=1
-                                )
+            self.qnet2(batch_obs, torch.squeeze(batch_action_samples[:, i, :], dim=0))
+            for i in range(batch_action_samples.shape[1])
+            ], dim=1)
         # print("qnet1_val: ", qnet1_val, "\n", "qnet1_val.shape: ", qnet1_val.shape, "\n")
         # the minimum of those predictions of the shape [batch, num_samples]
         qval_minimum = torch.minimum(qnet1_val, qnet2_val)
         # print("qval_minimum: ", qval_minimum, "\n", "qval_minimum.shape: ", qval_minimum.shape, "\n")
-        exp_qval_minimum = torch.exp(qval_minimum)
+        # exp_qval_minimum = torch.exp(qval_minimum)
         # print("exp_qval_minimum: ", exp_qval_minimum, "\n", "exp_qval_minimum.shape: ", exp_qval_minimum.shape, "\n")
         # the mean of those predictions of the shape [batch]
-        mean_exp_qval = torch.mean(exp_qval_minimum, dim=1, dtype=SoftActorCritic.NUMBER_DTYPE)
+        mean_exp_qval = torch.mean(qval_minimum, dim=1, dtype=SoftActorCritic.NUMBER_DTYPE)
         # print("mean_exp_qval: ", mean_exp_qval, "\n", "mean_exp_qval.shape: ", mean_exp_qval.shape, "\n")
+
+        # previous implemenbtations using the KL loss similarly to specified in the paper would 
+        # exponentiate the Q-value before averaging them - but this presumably led to NaN gradients
+        # and thus was replaced, as other implementations do, with a simple mean loss and no exponentiation
+        # example of such implementations: https://github.com/zhihanyang2022/pytorch-sac/blob/main/params_pool.py
         return mean_exp_qval
 
     def _compute_qnet_target(self, batch_rewards, batch_dones, batch_nextobs, batch_action_samples, batch_log_probs):
         with torch.no_grad():
-            qnet1_tar_preds = torch.cat(
-                                    [
-                                        self.qnet1_tar(batch_nextobs, torch.squeeze(batch_action_samples[:, i, :], dim=0))
-                                        for i in range(batch_action_samples.shape[1])
-                                    ], 
-                                    dim=1
-                                    )
+            qnet1_tar_preds = torch.cat([
+                self.qnet1_tar(batch_nextobs, torch.squeeze(batch_action_samples[:, i, :], dim=0))
+                for i in range(batch_action_samples.shape[1])
+                ], dim=1)
             # print("qnet1_tar_preds: ", qnet1_tar_preds, "\n", "qnet1_tar_preds.shape: ", qnet1_tar_preds.shape, "\n")
-            qnet2_tar_preds = torch.cat(
-                                    [
-                                        self.qnet2_tar(batch_nextobs, torch.squeeze(batch_action_samples[:, i, :], dim=0))
-                                        for i in range(batch_action_samples.shape[1])
-                                    ], 
-                                    dim=1
-                                    )
+            qnet2_tar_preds = torch.cat([
+                self.qnet2_tar(batch_nextobs, torch.squeeze(batch_action_samples[:, i, :], dim=0))
+                for i in range(batch_action_samples.shape[1])
+                ], dim=1)
             # print("qnet2_tar_preds: ", qnet2_tar_preds, "\n")
             # print("qnet2_tar_preds.shape: ", qnet2_tar_preds.shape, "\n")
             minimum = torch.minimum(qnet1_tar_preds, qnet2_tar_preds)
@@ -573,21 +691,17 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
                         batch_rewards + 
                         self.d_r *
                         (1.0 - batch_dones.to(SoftActorCritic.NUMBER_DTYPE)) *
-                        (
-                            mean_of_minimum -
-                            self.alpha *
-                            mean_of_log
-                        )
+                        (mean_of_minimum - self.alpha * mean_of_log)
                     )
             # print("targets: ", targets, "\n")
             # print("targets.shape: ", targets.shape, "\n")
 
             # TODO remove
-            # if targets.isinf().any():
+            # if targets.isinf().any() or targets.isnan().any():
             #     print("Inside _compute_target!")
-            #     # print(f"batch_nextobs is: {batch_nextobs}.\n")
-            #     # print(f"batch_action_samples is: {batch_action_samples}.\n")
-            #     print(f"batch_log_probs is: {batch_log_probs}.\n")
+                    # print(f"batch_nextobs is: {batch_nextobs}.\n")
+                    # print(f"batch_action_samples is: {batch_action_samples}.\n")
+                    # print(f"batch_log_probs is: {batch_log_probs}.\n")
             #     # print(f"qnet1_tar_preds is: {qnet1_tar_preds}.\n")
             #     # print(f"qnet2_tar_preds is: {qnet2_tar_preds}.\n")
             #     # print(f"minimum is: {minimum}.\n")
@@ -598,15 +712,19 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
 
         return targets
     
-    def _update_target_networks(self):
+    def _update_target_networks(self, hard_update : bool = False):
         """
         Updates the target networks utilizing the target smoothing coefficient 
         to slowly adjust parameters by considering from the corresponding q-networks.
         """
-        for param, target_param in zip(self.qnet1.parameters(), self.qnet1_tar.parameters()):
-            target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
-        for param, target_param in zip(self.qnet2.parameters(), self.qnet2_tar.parameters()):
-            target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
+        if hard_update:
+            self.qnet1_tar.load_state_dict(self.qnet1.state_dict())
+            self.qnet2_tar.load_state_dict(self.qnet2.state_dict())
+        else:
+            for param, target_param in zip(self.qnet1.parameters(), self.qnet1_tar.parameters()):
+                target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
+            for param, target_param in zip(self.qnet2.parameters(), self.qnet2_tar.parameters()):
+                target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
 
     def _unzip_experiences(experiences : Buffer, device = None):
         """
@@ -719,3 +837,30 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
             self.qnet2_tar.load_state_dict(torch.load(loaded_sac_name + "qnet2_tar" + suffix))
         except:
             raise Exception("LOADING SOMEHOW FAILED...")
+    
+    def show_loss_history(self, task_name):
+        def show_plot_and_save(history, nn):
+            plt.clf()
+            plt.plot(range(0, len(history)), history)
+            plt.savefig(f"{task_name}_{nn}_loss_history_fig.png")
+            plt.show()
+        
+        try:
+            total_loss_history = [(self.qnet1_loss_history[i] + 
+                              self.qnet2_loss_history[i] + 
+                              self.policy_loss_history[i])
+                              for i in range(min(
+                                  len(self.qnet1_loss_history),
+                                  len(self.qnet2_loss_history),
+                                  len(self.policy_loss_history))
+                                  )]
+        except:
+            total_loss_history = []
+        
+        for h, nn in [(self.qnet1_loss_history,  "qnet1"), 
+                      (self.qnet2_loss_history,  "qnet2"),
+                      (self.policy_loss_history, "policy_net"),
+                      (total_loss_history,       "total")]:
+            show_plot_and_save(h, nn)
+        
+        self.policy.show_histories_for_debugs()

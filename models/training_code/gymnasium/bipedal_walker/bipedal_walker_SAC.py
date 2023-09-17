@@ -9,25 +9,14 @@ import torch
 from models.policy_learning_algorithms.soft_actor_critic import SoftActorCritic
 from models.trainers.gym_base_trainer import GymOffPolicyBaseTrainer
 
-# set up a device first
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-# device = torch.device('cpu')
-print('Using device:', device)
-print()
-
-cpu_device = torch.device("cpu")
-
 # create the environment and determine specs about it
 env = gymnasium.make("BipedalWalker-v3")#, render_mode="human")
 observation_size = env.observation_space.shape[0]
 action_size = env.action_space.shape[0]
 action_ranges = tuple([(env.action_space.low[i], env.action_space.high[i]) for i in range(action_size)])
 
-print("The environment has observation of size: ", observation_size,
-      " and action of size: ", action_size, ".")
-
 learning_algorithm = SoftActorCritic(
-    q_net_learning_rate=3e-4, 
+    q_net_learning_rate=1e-3, 
     policy_learning_rate=1e-3, 
     discount=0.99, 
     temperature=0.25,
@@ -35,14 +24,13 @@ learning_algorithm = SoftActorCritic(
     observation_size=observation_size,
     action_size=action_size, 
     action_ranges=action_ranges,
-    pol_eval_batch_size=512,
-    pol_imp_batch_size=512,
-    update_qnet_every_N_gradient_steps=1,
-    device=device
+    pol_eval_batch_size=64,
+    pol_imp_batch_size=64,
+    update_qnet_every_N_gradient_steps=1
     # leave the optimizer as the default = Adam
     )
 
-trainer = GymOffPolicyBaseTrainer(env, learning_algorithm)
+trainer = GymOffPolicyBaseTrainer(env)
 
 # The number of training steps that will be performed
 NUM_TRAINING_STEPS = 20000
@@ -69,7 +57,7 @@ def no_exploration(actions, env):
     # since exploration is inherent in SAC, we don't need epsilon to do anything
     # we however need to convert torch.tensor back to numpy arrays.
     if type(actions) == type(torch.tensor([0])):
-        return actions.detach().to(cpu_device).numpy()
+        return actions.detach().to(torch.device("cpu")).numpy()
     elif type(actions) == type(np.array([0])):
         return actions
     else:
@@ -77,14 +65,15 @@ def no_exploration(actions, env):
                         "but should be either a torch.tensor or np.ndarray to successfully work.") 
 
 l_a = trainer.train(
+    learning_algorithm=learning_algorithm,
     num_training_steps=NUM_TRAINING_STEPS, 
     num_new_experience=NUM_NEW_EXP,
     max_buffer_size=BUFFER_SIZE,
     num_initial_experiences=NUM_INIT_EXP,
-    evaluate_every_N_steps=NUM_TRAINING_STEPS // 100,
+    evaluate_every_N_steps=NUM_TRAINING_STEPS // 20,
     initial_exploration_function=uniform_random_sampling,
     training_exploration_function=no_exploration,
     save_after_training=True,
     task_name=TASK_NAME,
-    render_evaluation=False
+    render_evaluation=True
     )
