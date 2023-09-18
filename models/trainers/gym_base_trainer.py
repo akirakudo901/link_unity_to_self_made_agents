@@ -220,16 +220,6 @@ class GymOffPolicyBaseTrainer:
                 learning_algorithm=learning_algorithm
             )
             print("Generation successful!")
-            # TODO TOREMOVE
-
-            # print("Action generated at the very beginning!")
-            # obs = torch.unsqueeze(torch.from_numpy(init_exp[0].obs), dim=0).cuda()
-            # act = torch.tensor([[-0.1313,  0.0119, -0.3108,  0.0566],]).cuda()
-            # print("obs: ", obs, "obs.shape: ", obs.shape, "act: ", act, "act.shape: ", act.shape)
-            # pred = torch.squeeze(self.learning_algorithm.qnet1(obs=obs, actions=act), dim=1)
-            # print("pred: ", pred)
-            
-            # END TOREMOVE
             
             experiences.extend_buffer(init_exp)
                 
