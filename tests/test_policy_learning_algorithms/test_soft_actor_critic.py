@@ -56,25 +56,26 @@ class TestSoftActorCritic_Policy(unittest.TestCase):
     """
 
     def test_Policy_correct_for_squash(self): 
-        before1 = torch.tensor([[0.3, 0.9, 0.95], [0.5, 0.7, 0.75]])
-        actions1 = torch.tensor([[[ 0.5,  0.6,  0.7,  0.8], [ 0.1,  0.2,  0.3,  0.4], [0.41, 0.52, 0.63, 0.74]], 
+        before1 = torch.tensor([[0.3, 0.9, 0.95], [0.5, 0.7, 0.75]]) #(2, 3)
+        actions1 = torch.tensor([[[ 0.5,  0.6,  0.7,  0.8], [ 0.1,  0.2,  0.3,  0.4], [0.41, 0.52, 0.63, 0.74]],  #(2, 3, 4)
                                  [[0.33, 0.44, 0.55, 0.66], [0.12, 0.24, 0.36, 0.48], [0.60, 0.72, 0.84, 0.96]]])
         
         action_ranges = ((-5., 0.6),)*4
         action_multiplier = torch.tensor([(range[1] - range[0]) / 2 for range in action_ranges])
-        # print("before1: ", before1, "before1.shape: ", before1.shape, "\n") 
-        # print("actions1: ", actions1, "actions1.shape: ", actions1.shape, "\n")
-        jacobian_diagonals1 = (1 - torch.tanh(actions1).pow(2))
-        # print("jacobian_diagonals1: ", jacobian_diagonals1, "jacobian_diagonals1.shape: ", jacobian_diagonals1.shape, "\n")
-        jacobian_trace1 = torch.sum(torch.log(action_multiplier * jacobian_diagonals1 + 1e-6), dim=2)
-        # print("jacobian_trace1: ", jacobian_trace1, "jacobian_trace1.shape: ", jacobian_trace1.shape, "\n")
-        expected1 = before1 - jacobian_trace1
-        # print("expected1: ", expected1, "expected1.shape: ", expected1.shape, "\n")
-
+        # formula is: jacobianDiagonal = 2 * (log(2) + log(multiplier) - x - softplus(-2x))
+        jacobian_trace_equivalent = torch.sum(torch.log(action_multiplier) + 
+                                              (2.0 * (torch.log(torch.tensor(2.)) - 
+                                                      actions1 -
+                                                      torch.nn.functional.softplus(-2. * actions1))), dim=2)
+        # ORIGINAL LESS NUMERICALLY STABLE WAY:
+        # jacobian_diagonals1 = (1 - torch.tanh(actions1).pow(2))
+        # jacobian_trace1 = torch.sum(torch.log(action_multiplier * jacobian_diagonals1 + 1e-6), dim=2)
+        
+        expected1 = before1 - jacobian_trace_equivalent
+        
         pol = SoftActorCritic.Policy(observation_size=3, action_size=4, action_ranges=action_ranges)
 
         actual1 = pol._correct_for_squash(before=before1, actions=actions1)
-        # print("actual1: ", actual1, "actual1s.shape: ", actual1.shape, "\n")
         
         self.assertTrue(torch.isclose(expected1, actual1).all())
 
@@ -83,8 +84,6 @@ class TestSoftActorCritic_Policy(unittest.TestCase):
         example_policy = SoftActorCritic.Policy(observation_size=3, action_size=7, action_ranges=tuple(((-1., 1.),)*7))
         obs1 = torch.tensor([[0.0,1.0,2.0], [3.0,4.0,5.0]]) #[batch=2, elem=3]
         squashed, log_probs = example_policy(obs=obs1, num_samples=5, deterministic=False)
-        # print("squashed: ", squashed, "squashed.shape: ", squashed.shape)
-        # print("log_probs: ", log_probs, "log_probs.shape: ", log_probs.shape)
         self.assertEqual((2, 5, 7), tuple(squashed.shape))
         self.assertEqual((2, 5), tuple(log_probs.shape))
 
@@ -119,8 +118,6 @@ class TestSoftActorCritic_Policy(unittest.TestCase):
 
         # first compute the clipped double Q-target
         list_batch_single_action_sample = [torch.squeeze(sngl_smpl, dim=1) for sngl_smpl in torch.split(batch_action_samples, 1, dim=1)]
-        # print("list_batch_single_action_sample[0]: ", list_batch_single_action_sample[0])
-        # print("list_batch_single_action_sample[0].shape: ", list_batch_single_action_sample[0].shape)
         self.assertEqual((2, 4), tuple(list_batch_single_action_sample[0].shape))
         # compute the Q-value relative to each q-net
         qnet1_target = torch.cat(
@@ -131,20 +128,16 @@ class TestSoftActorCritic_Policy(unittest.TestCase):
             [qnet2(obs=batch_nextobs, actions=batch_single_action) for batch_single_action in list_batch_single_action_sample],
             dim=1
         )
-        # print("qnet1_target: ", qnet1_target, "qnet1_target.shape: ", qnet1_target.shape)
         self.assertEqual((2, 2), tuple(qnet1_target.shape))
         # take the minimum of the two q-net values for each action sample
         target_min = torch.minimum(qnet1_target, qnet2_target)
-        # print("target_min: ", target_min, "target_min.shape: ", target_min.shape)
         self.assertEqual((2, 2), tuple(target_min.shape))
         # average this minimum over all action samples
         target_mean = torch.mean(target_min, dim=1, dtype=torch.float32)
-        # print("target_mean: ", target_mean, "target_mean.shape: ", target_mean.shape)
         self.assertEqual((2, ), tuple(target_mean.shape))
 
         # then calculate the log probabilities for the actions
         log_probs_mean = torch.mean(batch_log_probs, dim=1)
-        # print("log_probs_mean: ", log_probs_mean, "log_probs_mean.shape: ", log_probs_mean.shape)
         self.assertEqual((2, ), tuple(log_probs_mean.shape))
 
         # finally compute the target value as a whole
@@ -158,7 +151,6 @@ class TestSoftActorCritic_Policy(unittest.TestCase):
             log_probs_mean
             )
         )
-        # print("targets: ", targets, "targets.shape: ", targets.shape)
         self.assertEqual((2, ), tuple(targets.shape))
 
         # compute the exact same process using _compute_qnet_target
@@ -190,8 +182,6 @@ class TestSoftActorCritic_Policy(unittest.TestCase):
         
         # first compute the clipped double Q-target
         list_batch_single_action_sample = [torch.squeeze(sngl_smpl, dim=1) for sngl_smpl in torch.split(batch_action_samples, 1, dim=1)]
-        # print("list_batch_single_action_sample[0]: ", list_batch_single_action_sample[0])
-        # print("list_batch_single_action_sample[0].shape: ", list_batch_single_action_sample[0].shape)
         self.assertEqual((2, 4), tuple(list_batch_single_action_sample[0].shape))
         # compute the Q-value relative to each q-net
         qnet1_val = torch.cat(
@@ -202,15 +192,12 @@ class TestSoftActorCritic_Policy(unittest.TestCase):
             [qnet2(obs=batch_obs, actions=batch_single_action) for batch_single_action in list_batch_single_action_sample],
             dim=1
         )
-        # print("qnet1_val: ", qnet1_val, "qnet1_val.shape: ", qnet1_val.shape)
         self.assertEqual((2, 2), tuple(qnet1_val.shape))
         # take the minimum of the two q-net values for each action sample
         val_min = torch.minimum(qnet1_val, qnet2_val)
-        # print("val_min: ", val_min, "val_min.shape: ", val_min.shape)
         self.assertEqual((2, 2), tuple(val_min.shape))
         # average this minimum over all action samples
         val_mean = torch.mean(val_min, dim=1, dtype=torch.float32)
-        # print("val_mean: ", val_mean, "val_mean.shape: ", val_mean.shape)
         self.assertEqual((2, ), tuple(val_mean.shape))
 
         # compute the exact same process using _compute_policy_val

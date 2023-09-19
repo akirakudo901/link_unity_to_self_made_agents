@@ -241,11 +241,11 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
             
             # apparently below is numerically equivalent to above but more stable:
             # https://github.com/tensorflow/probability/blob/main/tensorflow_probability/python/bijectors/tanh.py#L73 
-            jacobian_trace = torch.squeeze((torch.log(torch.tensor(2.)) + 
-                                            2. * 
-                                            (torch.log(multiplier) - 
+            # formula is: 2 * (log(2) - x - softplus(-2x)) + log(multiplier)
+            jacobian_trace = torch.sum(torch.log(multiplier) + 
+                                       (2. * (torch.log(torch.tensor(2.)) - 
                                              actions - 
-                                             torch.nn.functional.softplus(-2. * actions))), dim=1) 
+                                             torch.nn.functional.softplus(-2. * actions))), dim=2) 
             # EXPERIMENTAL END
             
             # subtract it from before to yield after

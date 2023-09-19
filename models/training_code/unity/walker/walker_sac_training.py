@@ -46,8 +46,7 @@ learning_algorithm = SoftActorCritic(
     action_ranges=(((-1., 1.),)*action_size),
     pol_eval_batch_size=1028,
     pol_imp_batch_size=1028,
-    update_qnet_every_N_gradient_steps=1000,
-    device=device
+    update_qnet_every_N_gradient_steps=1000
     # leave the optimizer as the default = Adam
     )
 
