@@ -38,9 +38,9 @@ learning_algorithm = SoftActorCritic(
     policy_learning_rate=1e-3, 
     discount=0.99, 
     temperature=0.41,
-    observation_size=observation_size,
-    action_size=action_size, 
-    action_ranges=action_ranges,
+    obs_dim_size=observation_size,
+    act_dim_size=action_size, 
+    act_ranges=action_ranges,
     pol_eval_batch_size=64,
     pol_imp_batch_size=64,
     update_qnet_every_N_gradient_steps=1000,
@@ -64,7 +64,7 @@ TASK_NAME = "SAC" + "_Mountain_Car_Continuous"
 def uniform_random_sampling(actions, env):
     # initially sample actions from a uniform random distribution of the right
     # range, in order to extract good reward signals
-    action_zero_to_one = torch.rand(size=(learning_algorithm.act_size,)).cpu()
+    action_zero_to_one = torch.rand(size=(learning_algorithm.act_dim_size,)).cpu()
     action_minus_one_to_one = action_zero_to_one * 2.0 - 1.0
     adjusted_actions = (action_minus_one_to_one * 
                         learning_algorithm.policy.action_multiplier.detach().cpu() + 

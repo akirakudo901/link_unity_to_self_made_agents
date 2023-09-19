@@ -99,8 +99,8 @@ class TestSoftActorCritic_Policy(unittest.TestCase):
         testSAC = SoftActorCritic(
             q_net_learning_rate=1e-3, policy_learning_rate=1e-3, discount=DISCOUNT, 
             temperature=TEMPERATURE, qnet_update_smoothing_coefficient=TAU,
-            observation_size=OBSERVATION_SIZE, action_size=ACTION_SIZE, 
-            action_ranges=((-1., 1.), (-2., 3.), (0., 1.), (-10., 10.)),
+            obs_dim_size=OBSERVATION_SIZE, act_dim_size=ACTION_SIZE, 
+            act_ranges=((-1., 1.), (-2., 3.), (0., 1.), (-10., 10.)),
             pol_eval_batch_size=8, pol_imp_batch_size=8,
             update_qnet_every_N_gradient_steps=1
             )
@@ -166,8 +166,8 @@ class TestSoftActorCritic_Policy(unittest.TestCase):
         testSAC = SoftActorCritic(
             q_net_learning_rate=1e-3, policy_learning_rate=1e-3, discount=DISCOUNT, 
             temperature=TEMPERATURE, qnet_update_smoothing_coefficient=TAU,
-            observation_size=OBSERVATION_SIZE, action_size=ACTION_SIZE,
-            action_ranges=((-1., 1.), (-2., 3.), (0., 1.), (-10., 10.)),
+            obs_dim_size=OBSERVATION_SIZE, act_dim_size=ACTION_SIZE,
+            act_ranges=((-1., 1.), (-2., 3.), (0., 1.), (-10., 10.)),
             pol_eval_batch_size=8, pol_imp_batch_size=8,
             update_qnet_every_N_gradient_steps=1
             )
@@ -213,8 +213,8 @@ class TestSoftActorCritic_Policy(unittest.TestCase):
         testSAC = SoftActorCritic(
             q_net_learning_rate=1e-3, policy_learning_rate=1e-3, discount=DISCOUNT, 
             temperature=TEMPERATURE, qnet_update_smoothing_coefficient=TAU, 
-            observation_size=OBSERVATION_SIZE, action_size=ACTION_SIZE,
-            action_ranges=((-1., 1.), (-2., 3.), (0., 1.), (-10., 10.)),
+            obs_dim_size=OBSERVATION_SIZE, act_dim_size=ACTION_SIZE,
+            act_ranges=((-1., 1.), (-2., 3.), (0., 1.), (-10., 10.)),
             pol_eval_batch_size=8, pol_imp_batch_size=8,
             update_qnet_every_N_gradient_steps=1
             )

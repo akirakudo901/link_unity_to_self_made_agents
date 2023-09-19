@@ -5,6 +5,8 @@ import torch
 from models.policy_learning_algorithms.soft_actor_critic import SoftActorCritic
 from models.trainers.unityenv_base_trainer import Buffer, Experience
 
+import gymnasium
+
 # sac = SoftActorCritic(learning_rate=0.5, discount=0.9, temperature=0.5, observation_size=3, action_size=1)
 
 # exp : Buffer = []

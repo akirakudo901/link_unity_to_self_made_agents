@@ -2,19 +2,16 @@
 A DDQN algorithm to be used as learning algorithm.
 """
 
-from datetime import datetime
-
-import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
 
 from models.trainers.gym_base_trainer import NdArrayBuffer
+from models.policy_learning_algorithms.policy_learning_algorithm import OffPolicyLearningAlgorithm
 
-DNN_SAVE_FOLDER = "trained_algorithms/DDQN"
-
-class DoubleDeepQNetwork:
+class DoubleDeepQNetwork(OffPolicyLearningAlgorithm):
+    ALGORITHM_NAME = "DDQN"
 
     class DNN(nn.Module):
 
@@ -36,84 +33,70 @@ class DoubleDeepQNetwork:
     
 
     def __init__(self, 
-                 observation_dim_size : int, discrete_action_size : int, 
+                 obs_dim_size : int = None, act_num_discrete : int = None, 
                  l_r : float = 0.1, d_r : float = 0.95,
-                 hard_update_every_N_updates : int = None,
-                 soft_update_coefficient : float = None):
+                 soft_update_coefficient : float = 0.005,
+                 update_target_every_N_updates : int = 1,
+                 env = None):
         """
-        Initializes a DDQN algorithm.
-        One can choose between hard and soft target update by giving one argument to 
-        either hard_update_every_N_updates or soft_update_coefficient; if 
-        both or neither arguments are given, this results in an error.
+        Initializes a DDQN algorithm. 
+        *Either both of obs_dim_size and act_num_discrete, or env, should be given. If
+        both are given, information automatically extracted from env is prioritized.
+        If neither or only one of the first two are given, an error is raised.
 
-        :param int observation_dim_size: The dimension size for observations.
-        :param int discrete_action_size: The dimension size for actions.
+        :param int obs_dim_size: The dimension size for observations.
+        :param int act_num_discrete: The discrete numbers of actions (since this is Q-learning).
         :param float l_r: The learning rate of neural networks, defaults to 0.1
         :param float d_r: The decay rate in bootstrapping the Q-value, defaults to 0.95
-        :param int hard_update_every_N_updates: Designates once every how many steps the
-        target network's weights are updated to match that of the policy network, defaults to None.
-        :param float soft_update_coefficient: Designates the proportions at which we at every step 
-        update the target network's weights utilizing that of the policy network, defaults to None.
-        """
+        :param float soft_update_coefficient: Designates the proportions at which we 
+        update the target network's weights utilizing that of the policy network. Defaults to 0.005.
+        :param int update_target_every_N_updates: Designates once every how many steps the
+        target network's weights are updated using that of the policy network. Defaults to 1.
+        :param env: The environment on which we will train this algorithm. Optionally passed, so that
+        features about the environment are automatically extracted.
+        * IF GIVEN, INPUTS SUCH AS obs_dim_size AND act_num_discrete ARE IGNORED!
 
-        if hard_update_every_N_updates == None and soft_update_coefficient == None:
-            raise Exception("Neither hard_update_every_N_updates nor soft_update_coefficient " +
-                            "were specified - please specify exactly one of the two.")
-        elif hard_update_every_N_updates != None and soft_update_coefficient != None:
-            raise Exception("Both hard_update_every_N_updates and soft_update_coefficient " +
-                            "were specified - please specify exactly one of the two.")
-        else:
-            if hard_update_every_N_updates != None:
-                try: self.hard_update_every_N_updates = int(hard_update_every_N_updates)
-                except: raise Exception("hard_update_every_N_updates must be an integer!")
-                self.soft_update_coefficient = soft_update_coefficient
-            elif soft_update_coefficient != None:
-                self.hard_update_every_N_updates = hard_update_every_N_updates
-                try: self.soft_update_coefficient = float(soft_update_coefficient)
-                except: raise Exception("soft_update_coefficient must be a float!")
-                
-            
-        self.discrete_action_size = discrete_action_size
-        self.device = self.set_device()
+        """
+        if (obs_dim_size == None or act_num_discrete == None) and env == None:
+            raise Exception("Either both of obs_dim_size and act_num_discrete, or env, " +
+                             "should be given!")
+
+        super().__init__(obs_dim_size=obs_dim_size, act_num_discrete=act_num_discrete, env=env)
+
+        self.update_target_every_N_updates = update_target_every_N_updates
+        self.soft_update_coefficient = soft_update_coefficient
         self.discount = d_r
         
         self.dnn_policy = DoubleDeepQNetwork.DNN(
-            input_size=observation_dim_size, 
-            output_size=discrete_action_size
+            input_size=self.obs_dim_size, 
+            output_size=self.act_num_discrete
             ).to(self.device)
         self.dnn_target = DoubleDeepQNetwork.DNN(
-            input_size=observation_dim_size, 
-            output_size=discrete_action_size
+            input_size=self.obs_dim_size, 
+            output_size=self.act_num_discrete
             ).to(self.device)
 
         self.optim = optim.Adam(self.dnn_policy.parameters(), lr=l_r)
 
         self.dnn_update_counter = 0
         self.loss_history = [] # a List of floats
-    
-    def set_device(self):
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        print('Using device:', device)
-        return device
-    
-    def __call__(self, state):
-        return self.get_optimal_action(state)
         
     # "state" is a tuple of four values
     def get_optimal_action(self, state):
-        if type(state) == type(np.array([0])):
-            state_tensor = torch.from_numpy(state)
-        elif type(state) != type(torch.tensor([0])):
-            raise Exception("State passed to get_optimal_action should be a np.array or torch.tensor.")        
+        state_tensor = super().get_optimal_action(state)      
         state_tensor = state_tensor.to(self.device).unsqueeze(0)
         prediction = self.dnn_policy(state_tensor)
         return torch.argmax(prediction).numpy()
     
-    def save(self, taskName, path=None):
-        creation_time = datetime.now().strftime("%Y_%m_%d_%H_%M")
-        if path is None: 
-            path = f"{DNN_SAVE_FOLDER}/{taskName}_{creation_time}.pth"
-        torch.save(self.dnn_policy.state_dict(), path)
+    def save(self, task_name, save_dir=None):
+        save_dir = OffPolicyLearningAlgorithm.get_saving_directory_name(
+            task_name=task_name, 
+            algorithm_name=DoubleDeepQNetwork.ALGORITHM_NAME, 
+            save_dir=save_dir
+            )
+        
+        save_dir += ".pth"
+        torch.save(self.dnn_policy.state_dict(), save_dir)
 
     def load(self, path):
         self.dnn_policy.load_state_dict(torch.load(path))
@@ -168,9 +151,9 @@ class DoubleDeepQNetwork:
     # Updates the target dnn by setting its values equal to that of the policy dnn
     def _update_target(self):
         # do hard update
-        if self.hard_update_every_N_updates != None:
+        if self.update_target_every_N_updates != None:
             self.dnn_update_counter += 1
-            if self.dnn_update_counter % self.hard_update_every_N_updates == 0:
+            if self.dnn_update_counter % self.update_target_every_N_updates == 0:
                 self.dnn_target.load_state_dict(self.dnn_policy.state_dict())
         # or soft update
         elif self.soft_update_coefficient != None:
@@ -180,11 +163,20 @@ class DoubleDeepQNetwork:
                                         (1 - self.soft_update_coefficient) * 
                                         target_param.data)
     
-    def show_loss_history(self, task_name):
-        plt.clf()
-        plt.plot(range(0, len(self.loss_history)), self.loss_history)
-        plt.savefig(f"{task_name}_loss_history_fig.png")
-        plt.show()
+    def show_loss_history(self, task_name : str, save_figure : bool=True, save_dir : str=None):
+        """
+        Shows the loss history of the Q-network.
+
+        :param str task_name: The name of the task, e.g. pendulum.
+        :param bool save_figure: Whether to save the figure, defaults to True.
+        :param str save_dir: The directory to which we save figures. Set to current
+        directory if not given or None.
+        """
+        OffPolicyLearningAlgorithm.plot_history_and_save(history=self.loss_history, 
+                                                         loss_source="Qnet", 
+                                                         task_name=task_name, 
+                                                         save_figure=save_figure, 
+                                                         save_dir=save_dir)
 
 # Below is code useful when discretizing continuous environments such that we can apply DDQN 
 ACTION_DISCRETIZED_NUMBER = 100

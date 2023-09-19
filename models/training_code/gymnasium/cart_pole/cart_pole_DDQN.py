@@ -13,44 +13,61 @@ from models.trainers.gym_base_trainer import GymOffPolicyBaseTrainer
 
 # create the environment and determine specs about it
 env = gymnasium.make("CartPole-v1")
-observation_size = 1 if (env.observation_space.shape == ()) else env.observation_space.shape[0]
 
 trainer = GymOffPolicyBaseTrainer(env)
 
 TASK_NAME = "DDQN" + "_" + env.spec.id
 
-
-# ++++++++++++++++++++++++++
-# SET HYPERPARAMETERS
-
 parameters = {
-     "best_with_1e-2" : { "init_eps" : 1.0, "min_eps" : 0.05, "eps_decay" : 0.9996,
-                          "l_r" : 1e-2, "d_r" : 0.95, 
-                          "hard_update_every_N_updates" : None,
-                           "soft_update_coefficient" : 5e-4 },
+     "best_with_1e2" : { 
+          "init_eps" : 1.0, 
+          "min_eps" : 0.05, 
+          "eps_decay" : 0.9996,
+          "l_r" : 1e-2, 
+          "d_r" : 0.95, 
+          "soft_update_coefficient" : 5e-4,
+          "update_target_every_N_updates" : 1,
+          "num_training_steps" : 10000,
+          "num_init_exp" : 1000,
+          "num_new_exp" : 1,
+          "buffer_size" : 10000,
+          "save_after_training" : True
+          },
       # below is inspired from https://github.com/lsimmons2/double-dqn-cartpole-solution/blob/master/double_dqn.py
-      "trial" : { "init_eps" : 0.5, "min_eps" : 0.01, "eps_decay" : 0.99,
-                  "l_r" : 1e-3, "d_r" : 0.99, 
-                  "hard_update_every_N_updates" : None,
-                  "soft_update_coefficient" : 0.1}
+      "trial" : { 
+           "init_eps" : 0.5, 
+           "min_eps" : 0.01, 
+           "eps_decay" : 0.99,
+           "l_r" : 1e-3, 
+           "d_r" : 0.99, 
+           "soft_update_coefficient" : 0.1,
+           "update_target_every_N_updates" : 1,
+           "num_training_steps" : 10000,
+           "num_init_exp" : 1000,
+           "num_new_exp" : 1,
+           "buffer_size" : 10000,
+           "save_after_training" : True
+           },
+      # short training to see that code executes correctly
+      "for_testing" : {
+          "init_eps" : 1.0, 
+          "min_eps" : 0.05, 
+          "eps_decay" : 0.9996,
+          "l_r" : 1e-2, 
+          "d_r" : 0.95, 
+          "soft_update_coefficient" : 5e-4,
+          "update_target_every_N_updates" : 1,
+          "num_training_steps" : 20,
+          "num_init_exp" : 10,
+          "num_new_exp" : 1,
+          "buffer_size" : 10000,
+          "save_after_training" : False
+      }
 }
 
 # learning_rates = [5e-1, 1e-1, 5e-2, 1e-2, 5e-3, 1e-3, 5e-4, 1e-4, 5e-5, 1e-5] # all
 # learning_rates = [5e-1,   1e-3, 5e-4, 1e-4, 5e-5, 1e-5] # doesn't quite work:
 # learning_rates = [1e-1, 5e-2, 1e-2, 5e-3] #works well
-
-# The number of training steps that will be performed
-NUM_TRAINING_STEPS = 20000
-EVALUATE_EVERY_N_STEPS = 500
-# The number of experiences to be initlally collected before doing any training
-NUM_INIT_EXP = 5000
-# The number of experiences to collect per training step
-NUM_NEW_EXP = 1
-# The maximum size of the Buffer
-BUFFER_SIZE = 10000
-
-# SET HYPERPARAMETERS END
-# ++++++++++++++++++++++++++
 
 
 class EpsilonAdjustment:
@@ -88,42 +105,44 @@ def epsilon_exploration(actions, env, epsilon_adjustment):
       epsilon_adjustment.adjust_per_loop()
       return a
 
-            
-for i in range(3):
-      param_name = list(parameters.keys())[0]
 
-      print(f"Training: {param_name}")
-      
-      hyperparam = parameters[param_name]
-      
+def train_DDQN_on_cartPole(parameter_name : str):
+
+      print(f"Training: {parameter_name}")
+
+      param = parameters[parameter_name]
+
       algo = DoubleDeepQNetwork(
-           observation_dim_size=observation_size, 
-           discrete_action_size=2,
-           l_r=hyperparam["l_r"],
-           d_r=hyperparam["d_r"],
-           hard_update_every_N_updates=hyperparam["hard_update_every_N_updates"],
-           soft_update_coefficient=hyperparam["soft_update_coefficient"]
-           )
+            l_r=param["l_r"],
+            d_r=param["d_r"],
+            soft_update_coefficient=param["soft_update_coefficient"],
+            update_target_every_N_updates=param["update_target_every_N_updates"],
+            env=env
+            )
 
-      eps_adjust = EpsilonAdjustment(init_eps  = hyperparam["init_eps"], 
-                                     min_eps   = hyperparam["min_eps"], 
-                                     eps_decay = hyperparam["eps_decay"])
+      eps_adjust = EpsilonAdjustment(init_eps  = param["init_eps"],
+                                     min_eps   = param["min_eps"], 
+                                     eps_decay = param["eps_decay"])
 
       def eps_explore_fn(actions, env):
-           return epsilon_exploration(actions, env, eps_adjust)
+            return epsilon_exploration(actions, env, eps_adjust)
 
       l_a = trainer.train(
             learning_algorithm=algo,
-            num_training_steps=NUM_TRAINING_STEPS, 
-            num_new_experience=NUM_NEW_EXP,
-            max_buffer_size=BUFFER_SIZE,
-            num_initial_experiences=NUM_INIT_EXP,
-            evaluate_every_N_steps=EVALUATE_EVERY_N_STEPS,
+            num_training_steps=param["num_training_steps"], 
+            num_new_experience=param["num_new_exp"],
+            max_buffer_size=param["buffer_size"],
+            num_initial_experiences=param["num_init_exp"],
+            evaluate_every_N_steps=param["num_training_steps"] // 20,
             initial_exploration_function=uniform_random_sampling,
             training_exploration_function=eps_explore_fn,
-            save_after_training=True,
-            task_name=TASK_NAME + f"_{hyperparam['l_r']}_trial_{i+1}",
+            save_after_training=param["save_after_training"],
+            task_name=TASK_NAME + f"_{param['l_r']}",
             render_evaluation=False
             )
-      
+
       eps_adjust.show_epsilon_history()
+      return l_a
+
+
+train_DDQN_on_cartPole(parameter_name="for_testing")

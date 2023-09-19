@@ -3,11 +3,10 @@ A trial implementation of Soft-Actor Critic as documented in the spinning-up pag
 https://spinningup.openai.com/en/latest/algorithms/sac.html
 """
 
-from datetime import datetime
 import os
-from typing import Tuple
+from typing import Union, Tuple
 
-import matplotlib.pyplot as plt
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -17,7 +16,7 @@ from models.policy_learning_algorithms.policy_learning_algorithm import OffPolic
 from models.trainers.gym_base_trainer import Buffer
 
 class SoftActorCritic(OffPolicyLearningAlgorithm):
-
+    ALGORITHM_NAME = "SAC"
     NUMBER_DTYPE = torch.float32
     
     class QNet(nn.Module):
@@ -223,8 +222,9 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
                     correction of before.
                 3) Since we are dealing with log probabilities, multiplication turn to addition.
 
-            Furthermore, as we scale the action by different factors after squashing with tanh to adjust
-            to the actual action ranges, we multiply the whole result by self.action_multiplier before the sum.
+            Furthermore, as we scale the action by different factors after squashing with tanh 
+            to adjust to the actual action ranges, we multiply the whole result by 
+            self.action_multiplier before the sum.
 
             :param torch.tensor before: The log probabilities to be corrected.
             Will be of the form [batch_size, num_samples].
@@ -259,44 +259,47 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
                  discount : float,
                  temperature : float,
                  qnet_update_smoothing_coefficient : float,
-                 observation_size : int,
-                 action_size : int,
-                 action_ranges : Tuple[Tuple[float]],
                  pol_eval_batch_size : int,
                  pol_imp_batch_size : int,
                  update_qnet_every_N_gradient_steps : int,
-                 optimizer : optim.Optimizer = optim.Adam
+                 obs_dim_size : int = None,
+                 act_dim_size : int = None,
+                 act_ranges : Tuple[Tuple[float]] = None,
+                 optimizer : optim.Optimizer = optim.Adam,
+                 env = None
                  ):
+        if (obs_dim_size == None or act_dim_size == None or act_ranges == None) and env == None:
+            raise Exception("Either all of obs_dim_size, act_dim_size and act_ranges, or env, " +
+                             "should be given!")
+        
+        super().__init__(obs_dim_size=obs_dim_size, act_dim_size=act_dim_size, 
+                         act_ranges=act_ranges, env=env)
+
         self.q_net_l_r = q_net_learning_rate
         self.pol_l_r = policy_learning_rate
         self.d_r = discount
         self.alpha = temperature
         self.tau = qnet_update_smoothing_coefficient
-        self.obs_size = observation_size
-        self.act_size = action_size
-        self.act_ranges = action_ranges
         self.pol_eval_batch_size = pol_eval_batch_size
         self.pol_imp_batch_size = pol_imp_batch_size
         self.update_qnet_every_N_gradient_steps = update_qnet_every_N_gradient_steps
-        
-        self.device = self.set_device()
 
         self.qnet_update_counter = 1
 
         # two q-functions are used to approximate values during training
-        self.qnet1 = SoftActorCritic.QNet(observation_size=observation_size, action_size=action_size).to(self.device)
-        self.qnet2 = SoftActorCritic.QNet(observation_size=observation_size, action_size=action_size).to(self.device)
+        self.qnet1 = SoftActorCritic.QNet(observation_size=self.obs_dim_size, action_size=self.act_dim_size).to(self.device)
+        self.qnet2 = SoftActorCritic.QNet(observation_size=self.obs_dim_size, action_size=self.act_dim_size).to(self.device)
         self.optim_qnet1 = optimizer(self.qnet1.parameters(), lr=q_net_learning_rate)
         self.optim_qnet2 = optimizer(self.qnet2.parameters(), lr=q_net_learning_rate)
         # two target networks are updated less (e.g. every 1000 steps) to compute targets for q-function update
-        self.qnet1_tar = SoftActorCritic.QNet(observation_size=observation_size, action_size=action_size).to(self.device)
-        self.qnet2_tar = SoftActorCritic.QNet(observation_size=observation_size, action_size=action_size).to(self.device)
+        self.qnet1_tar = SoftActorCritic.QNet(observation_size=self.obs_dim_size, action_size=self.act_dim_size).to(self.device)
+        self.qnet2_tar = SoftActorCritic.QNet(observation_size=self.obs_dim_size, action_size=self.act_dim_size).to(self.device)
         # transfer the weights to sync
         self._update_target_networks(hard_update=True)
         
         # initialize policy 
         self.policy = SoftActorCritic.Policy(
-            observation_size=observation_size, action_size=action_size, action_ranges=action_ranges
+            observation_size=self.obs_dim_size, action_size=self.act_dim_size, action_ranges=self.act_ranges
             ).to(self.device)
         self.optim_policy = optimizer(self.policy.parameters(), lr=policy_learning_rate)
 
@@ -304,21 +307,7 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
         self.qnet2_loss_history = [] #List of float
         self.policy_loss_history = [] #List of float
     
-    def set_device(self):
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        print('Using device:', device)
-        return device
-    
-    def __call__(self, state):
-        """
-        A format put in place where SAC is called raw to obtain actions from it.
-
-        :param state: The state of observation in question to which this algorithm was applied.
-        Could be a numpy array or torch tensor? TODO ASCERTAIN!
-        """
-        return self.get_optimal_action(state)
-    
-    def update(self, experiences : Buffer, seed=None):
+    def update(self, experiences : Buffer, seed : int=None):
         # a single experience contained in "experiences" is of the form: 
         # (obs, action, reward, done, next_obs)
 
@@ -556,30 +545,32 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
                                                                         torch.from_numpy(np_next_obs).to(device))
         return observations,actions,rewards,dones,next_observations
     
-    def get_optimal_action(self, state):
+    def get_optimal_action(self, state : Union[torch.tensor, np.ndarray]):
         """
         Computes the currently optimal action given an observation state.
         State can be either a torch tensor or numpy array, both being converted
         into a torch tensor before further processing is done.
 
-        :param state: The observation state given as torch.tensor or np.ndarray.
+        :param torch.tensor or np.ndarray state: The observation state. 
         :return np.ndarray action: The action the policy deems optimal as ndarray. 
         """
-        # if type is not torch.tensor, try casting
-        if type(state) != type(torch.tensor([0])):
-            try:
-                state = torch.from_numpy(state)
-            except:
-                raise Exception("Error in reading observation within SAC get_optimal_action; \
-                                'state' needs to be one of torch.tensor or np.ndarray.")
-        action = self.policy(obs=state.to(self.device), deterministic=True)
+        state_tensor = super().get_optimal_action(state)
+        action = self.policy(obs=state_tensor.to(self.device), deterministic=True)
         return action.detach().numpy()
     
     def save(self, task_name: str, save_dir : str = None):
-        creation_time = datetime.now().strftime("%Y_%m_%d_%H_%M")
-        if save_dir is None:
-            save_dir = f"trained_algorithms/SAC/{task_name}_{creation_time}"
-        
+        """
+        Saves the current policy.
+
+        :param str task_name: The name of the task according to which we save the algorithm.
+        :param str save_dir: The directory to which this policy is saved.
+        """
+        save_dir = OffPolicyLearningAlgorithm.get_saving_directory_name(
+            task_name=task_name, 
+            algorithm_name=SoftActorCritic.ALGORITHM_NAME, 
+            save_dir=save_dir
+            )
+                
         if not os.path.exists(save_dir): os.mkdir(save_dir)
         suffix =  ".pth"
         try: 
@@ -618,27 +609,32 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
         except:
             raise Exception("LOADING SOMEHOW FAILED...")
     
-    def show_loss_history(self, task_name):
-        def show_plot_and_save(history, nn):
-            plt.clf()
-            plt.plot(range(0, len(history)), history)
-            plt.savefig(f"{task_name}_{nn}_loss_history_fig.png")
-            plt.show()
+    def show_loss_history(self, task_name : str, save_figure : bool=True, save_dir : str=None):
+        """
+        Plots figure indicating losses for each Q-networks and the policy
+        as well as a total loss. Saves the resulting figures under save_dir, 
+        if save_figure is True.
+
+        :param str task_name: The name of the task we are working with.
+        :param bool save_figure: Whether to save the figure plots as pngs
+        in the current directory. Defaults to True.
+        :param str save_dir: Directory to which we save the figures. If not given,
+        we save the figures to the current directory.
+        """        
+        total_loss_history = [(self.qnet1_loss_history[i] + 
+                            self.qnet2_loss_history[i] + 
+                            self.policy_loss_history[i])
+                            for i in range(min(
+                                len(self.qnet1_loss_history),
+                                len(self.qnet2_loss_history),
+                                len(self.policy_loss_history))
+                                )]
         
-        try:
-            total_loss_history = [(self.qnet1_loss_history[i] + 
-                              self.qnet2_loss_history[i] + 
-                              self.policy_loss_history[i])
-                              for i in range(min(
-                                  len(self.qnet1_loss_history),
-                                  len(self.qnet2_loss_history),
-                                  len(self.policy_loss_history))
-                                  )]
-        except:
-            total_loss_history = []
-        
-        for h, nn in [(self.qnet1_loss_history,  "qnet1"), 
+        for h, src in [(self.qnet1_loss_history,  "qnet1"), 
                       (self.qnet2_loss_history,  "qnet2"),
                       (self.policy_loss_history, "policy_net"),
                       (total_loss_history,       "total")]:
-            show_plot_and_save(h, nn)
+            OffPolicyLearningAlgorithm.plot_history_and_save(history=h, loss_source=src, 
+                                                             task_name=task_name, 
+                                                             save_figure=save_figure, 
+                                                             save_dir=save_dir)
