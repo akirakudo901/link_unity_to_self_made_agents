@@ -13,7 +13,7 @@ import torch
 
 from models.trainers.utils.buffer import Buffer
 
-class OffPolicyLearningAlgorithm(ABC):
+class PolicyLearningAlgorithm(ABC):
 
     ALGORITHM_SAVE_DIR = "trained_algorithms"
 
@@ -46,7 +46,7 @@ class OffPolicyLearningAlgorithm(ABC):
 
         if env == None: pass
         elif isinstance(env, gymnasium.Env):
-            spec_dict = OffPolicyLearningAlgorithm.get_gym_environment_specs(env)
+            spec_dict = PolicyLearningAlgorithm.get_gym_environment_specs(env)
             obs_dim_size = spec_dict["obs_dim_size"]
             act_dim_size = spec_dict["act_dim_size"]
             obs_num_discrete = spec_dict["obs_num_discrete"]
@@ -109,7 +109,7 @@ class OffPolicyLearningAlgorithm(ABC):
         """
         creation_time = datetime.now().strftime("%Y_%m_%d_%H_%M")
         if save_dir is None:
-            save_dir = (f"{OffPolicyLearningAlgorithm.ALGORITHM_SAVE_DIR}" + 
+            save_dir = (f"{PolicyLearningAlgorithm.ALGORITHM_SAVE_DIR}" + 
                         f"/{algorithm_name}/{task_name}_{creation_time}")
         return save_dir
 
@@ -229,6 +229,3 @@ class OffPolicyLearningAlgorithm(ABC):
             "obs_num_discrete" : obs_num_discrete, "act_num_discrete" : act_num_discrete,
             "obs_ranges" : obs_ranges, "act_ranges" : act_ranges
             }
-
-class OnPolicyLearningAlgorithm(ABC):
-    pass

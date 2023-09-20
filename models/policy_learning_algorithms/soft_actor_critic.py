@@ -12,10 +12,10 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.distributions.normal import Normal
 
-from models.policy_learning_algorithms.policy_learning_algorithm import OffPolicyLearningAlgorithm
+from models.policy_learning_algorithms.policy_learning_algorithm import PolicyLearningAlgorithm
 from models.trainers.gym_base_trainer import Buffer
 
-class SoftActorCritic(OffPolicyLearningAlgorithm):
+class SoftActorCritic(PolicyLearningAlgorithm):
     ALGORITHM_NAME = "SAC"
     NUMBER_DTYPE = torch.float32
     
@@ -565,7 +565,7 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
         :param str task_name: The name of the task according to which we save the algorithm.
         :param str save_dir: The directory to which this policy is saved.
         """
-        save_dir = OffPolicyLearningAlgorithm.get_saving_directory_name(
+        save_dir = PolicyLearningAlgorithm.get_saving_directory_name(
             task_name=task_name, 
             algorithm_name=SoftActorCritic.ALGORITHM_NAME, 
             save_dir=save_dir
@@ -634,7 +634,7 @@ class SoftActorCritic(OffPolicyLearningAlgorithm):
                       (self.qnet2_loss_history,  "qnet2"),
                       (self.policy_loss_history, "policy_net"),
                       (total_loss_history,       "total")]:
-            OffPolicyLearningAlgorithm.plot_history_and_save(history=h, loss_source=src, 
+            PolicyLearningAlgorithm.plot_history_and_save(history=h, loss_source=src, 
                                                              task_name=task_name, 
                                                              save_figure=save_figure, 
                                                              save_dir=save_dir)

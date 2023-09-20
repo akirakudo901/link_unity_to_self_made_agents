@@ -18,7 +18,7 @@ import numpy as np
 
 from models.trainers.utils.buffer import Buffer, NdArrayBuffer
 from models.trainers.utils.experience import Experience
-from models.policy_learning_algorithms.policy_learning_algorithm import OffPolicyLearningAlgorithm
+from models.policy_learning_algorithms.policy_learning_algorithm import PolicyLearningAlgorithm
 
 class GymOnPolicyBaseTrainer:
     pass
@@ -64,7 +64,7 @@ class GymOffPolicyBaseTrainer:
     def generate_experience(
             self,
             exploration_function, 
-            learning_algorithm : OffPolicyLearningAlgorithm
+            learning_algorithm : PolicyLearningAlgorithm
             ) -> Experience:
         """
         Executes a single step in the environment for the agent, storing the last state & action 
@@ -91,7 +91,7 @@ class GymOffPolicyBaseTrainer:
            determined outside the environment
          - "info" which provides additional information
         """
-        if not isinstance(learning_algorithm, OffPolicyLearningAlgorithm):
+        if not isinstance(learning_algorithm, PolicyLearningAlgorithm):
             raise Exception("The algorithm passed to generate_experience was not an instance of " + 
                             "OffPolicyLearningAlgorithm - please make sure that an " +
                             "OffPolicyLearningAlgorithm is passed!")
@@ -146,7 +146,7 @@ class GymOffPolicyBaseTrainer:
             self, 
             buffer_size : int,
             exploration_function,
-            learning_algorithm : OffPolicyLearningAlgorithm
+            learning_algorithm : PolicyLearningAlgorithm
         ) -> Buffer:
         """
         Generates and returns a buffer containing "buffer_size" random experiences 
@@ -161,7 +161,7 @@ class GymOffPolicyBaseTrainer:
         evaluating actions given states per batches.
         :returns Buffer buffer: The buffer containing buffer_size experiences.
         """
-        if not isinstance(learning_algorithm, OffPolicyLearningAlgorithm):
+        if not isinstance(learning_algorithm, PolicyLearningAlgorithm):
             raise Exception("The algorithm passed to generate_batch_of_experiences was not an instance of " + 
                             "OffPolicyLearningAlgorithm - please make sure that an " +
                             "OffPolicyLearningAlgorithm is passed!")
@@ -183,7 +183,7 @@ class GymOffPolicyBaseTrainer:
     
     def train(
             self,
-            learning_algorithm : OffPolicyLearningAlgorithm,
+            learning_algorithm : PolicyLearningAlgorithm,
             num_training_steps : int,
             num_new_experience : int,
             max_buffer_size : int,
@@ -194,7 +194,7 @@ class GymOffPolicyBaseTrainer:
             save_after_training : bool,
             task_name : str,
             render_evaluation : bool = True
-        ) -> OffPolicyLearningAlgorithm:
+        ) -> PolicyLearningAlgorithm:
         """
         Trains the learning algorithm in the environment with given specifications, returning 
         the trained algorithm.
@@ -217,7 +217,7 @@ class GymOffPolicyBaseTrainer:
         :param bool render_evaluation: Whether to render the environment when evaluating.
         :returns OffPolicyLearningAlgorithm learning_algorithm: The trained algorithm object.
         """
-        if not isinstance(learning_algorithm, OffPolicyLearningAlgorithm):
+        if not isinstance(learning_algorithm, PolicyLearningAlgorithm):
             raise Exception("The algorithm passed to train was not an instance of " + 
                             "OffPolicyLearningAlgorithm - please make sure that an " +
                             "OffPolicyLearningAlgorithm is passed!")
@@ -284,14 +284,13 @@ class GymOffPolicyBaseTrainer:
                 plt.savefig(f"{task_name}_cumulative_reward_fig.png")
                 plt.show()
                 learning_algorithm.show_loss_history(task_name=task_name, save_figure=True, save_dir=None)
-
-            except ValueError:
-                print("\nPlot failed on interrupted training.")
-                
+            except Exception:
+                logging.error(traceback.format_exc())
+    
             return learning_algorithm
     
     def evaluate(self, 
-                 learning_algorithm : OffPolicyLearningAlgorithm, 
+                 learning_algorithm : PolicyLearningAlgorithm, 
                  num_samples : int = 5, 
                  render : bool = True) -> float:
         """
@@ -305,10 +304,10 @@ class GymOffPolicyBaseTrainer:
         Defaults to True.
         :returns float: Returns the average cumulative reward.
         """
-        if not isinstance(learning_algorithm, OffPolicyLearningAlgorithm):
+        if not isinstance(learning_algorithm, PolicyLearningAlgorithm):
             raise Exception("The algorithm passed to GymOffPolicyBaseTrainer was not an instance of " + 
-                            "OffPolicyLearningAlgorithm - please make sure that an " +
-                            "OffPolicyLearningAlgorithm is passed!")
+                            "PolicyLearningAlgorithm - please make sure that an " +
+                            "PolicyLearningAlgorithm is passed!")
 
         def evaluate_on_environment(env):
             cum_rew = 0.0

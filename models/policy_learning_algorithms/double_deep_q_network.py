@@ -8,9 +8,9 @@ import torch.nn as nn
 import torch.optim as optim
 
 from models.trainers.gym_base_trainer import NdArrayBuffer
-from models.policy_learning_algorithms.policy_learning_algorithm import OffPolicyLearningAlgorithm
+from models.policy_learning_algorithms.policy_learning_algorithm import PolicyLearningAlgorithm
 
-class DoubleDeepQNetwork(OffPolicyLearningAlgorithm):
+class DoubleDeepQNetwork(PolicyLearningAlgorithm):
     ALGORITHM_NAME = "DDQN"
 
     class DNN(nn.Module):
@@ -89,7 +89,7 @@ class DoubleDeepQNetwork(OffPolicyLearningAlgorithm):
         return torch.argmax(prediction).numpy()
     
     def save(self, task_name, save_dir=None):
-        save_dir = OffPolicyLearningAlgorithm.get_saving_directory_name(
+        save_dir = PolicyLearningAlgorithm.get_saving_directory_name(
             task_name=task_name, 
             algorithm_name=DoubleDeepQNetwork.ALGORITHM_NAME, 
             save_dir=save_dir
@@ -172,7 +172,7 @@ class DoubleDeepQNetwork(OffPolicyLearningAlgorithm):
         :param str save_dir: The directory to which we save figures. Set to current
         directory if not given or None.
         """
-        OffPolicyLearningAlgorithm.plot_history_and_save(history=self.loss_history, 
+        PolicyLearningAlgorithm.plot_history_and_save(history=self.loss_history, 
                                                          loss_source="Qnet", 
                                                          task_name=task_name, 
                                                          save_figure=save_figure, 
