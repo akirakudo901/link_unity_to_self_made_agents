@@ -4,6 +4,7 @@ Base abstract class for whatever policy learning algorithm we use.
 
 from abc import ABC, abstractmethod
 from datetime import datetime
+from math import log2
 from typing import List, Tuple, Union
 
 import gymnasium
@@ -151,7 +152,8 @@ class PolicyLearningAlgorithm(ABC):
     def plot_history_and_save(history : List[float], loss_source : str, 
                               task_name : str, save_figure : bool, save_dir : str):
         """
-        Plots and saves a given loss history.
+        Plots and saves a given loss history. If the max & min difference of loss is
+        greater than 200, we apply log to make it more visible.
 
         :param List[float] history: A loss history expressed as list of floats.
         :param str loss_source: Where the loss comes from, e.g. qnet1.
@@ -160,11 +162,20 @@ class PolicyLearningAlgorithm(ABC):
         :param str save_dir: The directory to which we save figures.
         """
         if save_dir == None: save_dir = "."
+        figure_name = f"{task_name}_{loss_source}_loss_history_fig.png"
+
+        # if difference is too big, apply log
+        minimum = min(history)
+        if (max(history) - minimum) >= 200:
+            # ensure that loss is greater than 0
+            history = [log2(history[i]) if minimum > 0 
+                       else log2(history[i] - minimum + 1e-6) - log2(abs(minimum)) 
+                       for i in range(len(history))]
+            figure_name = f"{task_name}_{loss_source}_logLoss_history_fig.png"
 
         plt.clf()
         plt.plot(range(0, len(history)), history)
-        if save_figure: 
-            plt.savefig(f"{save_dir}/{task_name}_{loss_source}_loss_history_fig.png")
+        if save_figure: plt.savefig(f"{save_dir}/{figure_name}")
         plt.show()
 
     @staticmethod

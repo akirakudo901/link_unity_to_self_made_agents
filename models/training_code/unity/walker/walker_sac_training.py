@@ -2,7 +2,7 @@
 An integration of the Walker environment with SAC.
 """
 
-from mlagents_envs.environment import BaseEnv, UnityEnvironment
+from mlagents_envs.environment import BaseEnv
 from mlagents_envs.registry import default_registry
 import numpy as np
 import torch
@@ -10,74 +10,117 @@ import torch
 from models.policy_learning_algorithms.soft_actor_critic import SoftActorCritic
 from models.trainers.unityenv_base_trainer import UnityOffPolicyBaseTrainer
 
-SAVE_AFTER_TRAINING = True
+parameters = {
+    # "batch_size_256" : {
+    #     "q_net_learning_rate"  : 1e-3,
+    #     "policy_learning_rate" : 1e-3,
+    #     "discount" : 0.99,
+    #     "temperature" : 0.1,
+    #     "qnet_update_smoothing_coefficient" : 0.005,
+    #     "pol_eval_batch_size" : 256,
+    #     "pol_imp_batch_size" : 256,
+    #     "update_qnet_every_N_gradient_steps" : 1,
+    #     "num_training_steps" : 50000,
+    #     "num_init_exp" : 3000,
+    #     "num_new_exp" : 1,
+    #     "buffer_size" : 10000,
+    #     "save_after_training" : True
+    # },
+    "batch_size_1024" : {
+        "q_net_learning_rate"  : 1e-3,
+        "policy_learning_rate" : 1e-3,
+        "discount" : 0.99,
+        "temperature" : 0.1,
+        "qnet_update_smoothing_coefficient" : 0.005,
+        "pol_eval_batch_size" : 1024,
+        "pol_imp_batch_size" : 1024,
+        "update_qnet_every_N_gradient_steps" : 1,
+        "num_training_steps" : 50000,
+        "num_init_exp" : 3000,
+        "num_new_exp" : 1,
+        "buffer_size" : 10000,
+        "save_after_training" : True
+    },
+    "batch_size_64" : {
+        "q_net_learning_rate"  : 1e-3,
+        "policy_learning_rate" : 1e-3,
+        "discount" : 0.99,
+        "temperature" : 0.1,
+        "qnet_update_smoothing_coefficient" : 0.005,
+        "pol_eval_batch_size" : 64,
+        "pol_imp_batch_size" : 64,
+        "update_qnet_every_N_gradient_steps" : 1,
+        "num_training_steps" : 300000,
+        "num_init_exp" : 3000,
+        "num_new_exp" : 1,
+        "buffer_size" : 10000,
+        "save_after_training" : True
+    }
+}
 
 
-print("About to create the environment! Press the play button to initiate training!")
-# env = UnityEnvironment(file_name=None, seed=1, side_channels=[])
-env = default_registry["Walker"].make()
-print("Successfully created the environment!")
+def train_SAC_on_walker(parameter_name : str):
 
+    ENV_NAME = "Walker"
+    env = default_registry[ENV_NAME].make()
 
-# reset the environment to set up behavior_specs
-env.reset()
-behavior_name = list(env.behavior_specs)[0]        
-observation_size = env.behavior_specs[behavior_name].observation_specs[0].shape[0]
-action_size = env.behavior_specs[behavior_name].action_spec.continuous_size
+    # reset the environment to set up behavior_specs
+    env.reset()
+    behavior_name = list(env.behavior_specs)[0]        
+    observation_size = env.behavior_specs[behavior_name].observation_specs[0].shape[0]
+    action_size = env.behavior_specs[behavior_name].action_spec.continuous_size
 
-learning_algorithm = SoftActorCritic(
-    q_net_learning_rate=3e-4, 
-    policy_learning_rate=1e-3, 
-    discount=0.99, 
-    temperature=0.2,
-    qnet_update_smoothing_coefficient=0.005,
-    obs_dim_size=observation_size,
-    act_dim_size=action_size, 
-    act_ranges=(((-1., 1.),)*action_size),
-    pol_eval_batch_size=64,
-    pol_imp_batch_size=64,
-    update_qnet_every_N_gradient_steps=1
-    # leave the optimizer as the default = Adam
-    )
+    trainer = UnityOffPolicyBaseTrainer(env, behavior_name)
+    
+    def uniform_random_sampling(actions, env):
+        # initially sample actions from a uniform random distribution of the right
+        # range, in order to extract good reward signals
+        num_agents = actions.shape[0]
+        action_zero_to_one = torch.rand(size=(num_agents, learning_algorithm.act_dim_size,)).cpu()
+        action_minus_one_to_one = action_zero_to_one * 2.0 - 1.0
+        adjusted_actions = (action_minus_one_to_one * 
+                            learning_algorithm.policy.action_multiplier.detach().cpu() + 
+                            learning_algorithm.policy.action_avgs.detach().cpu())
+        return adjusted_actions.numpy()
 
-trainer = UnityOffPolicyBaseTrainer(env, behavior_name)
+    def no_exploration(actions : np.ndarray, env : BaseEnv):
+        # since exploration is inherent in SAC, we don't need epsilon to do anything
+        # SAC also returns an np.ndarray upon call
+        return actions
 
-# The number of training steps that will be performed
-NUM_TRAINING_STEPS = 2000
-# The number of experiences to be initlally collected before doing any training
-NUM_INIT_EXP = 1000
-# The number of experiences to collect per training step
-NUM_NEW_EXP = 1
-# The maximum size of the Buffer
-BUFFER_SIZE = 10**4
+    print(f"Training: {parameter_name}")
 
-TASK_NAME = "SAC" + "_Walker"
+    param = parameters[parameter_name]
 
-def uniform_random_sampling(actions, env):
-    # initially sample actions from a uniform random distribution of the right
-    # range, in order to extract good reward signals
-    num_agents = actions.shape[0]
-    action_zero_to_one = torch.rand(size=(num_agents, learning_algorithm.act_dim_size,)).cpu()
-    action_minus_one_to_one = action_zero_to_one * 2.0 - 1.0
-    adjusted_actions = (action_minus_one_to_one * 
-                        learning_algorithm.policy.action_multiplier.detach().cpu() + 
-                        learning_algorithm.policy.action_avgs.detach().cpu())
-    return adjusted_actions.numpy()
+    learning_algorithm = SoftActorCritic(
+        q_net_learning_rate=param["q_net_learning_rate"], 
+        policy_learning_rate=param["policy_learning_rate"], 
+        discount=param["discount"], 
+        temperature=param["temperature"],
+        obs_dim_size=observation_size,
+        act_dim_size=action_size, 
+        act_ranges=(((-1., 1.),)*action_size),
+        qnet_update_smoothing_coefficient=param["qnet_update_smoothing_coefficient"],
+        pol_eval_batch_size=param["pol_eval_batch_size"],
+        pol_imp_batch_size=param["pol_imp_batch_size"],
+        update_qnet_every_N_gradient_steps=param["update_qnet_every_N_gradient_steps"],
+        # leave the optimizer as the default = Adam
+        )
 
-def no_exploration(actions : np.ndarray, env : BaseEnv):
-    # since exploration is inherent in SAC, we don't need epsilon to do anything
-    # SAC also returns an np.ndarray upon call
-    return actions
+    l_a = trainer.train(
+        learning_algorithm=learning_algorithm,
+        num_training_steps=param["num_training_steps"], 
+        num_new_experience=param["num_new_exp"],
+        max_buffer_size=param["buffer_size"],
+        num_initial_experiences=param["num_init_exp"],
+        evaluate_every_N_steps=param["num_training_steps"] // 50,
+        initial_exploration_function=uniform_random_sampling,
+        training_exploration_function=no_exploration,
+        save_after_training=param["save_after_training"],
+        task_name=f"{learning_algorithm.ALGORITHM_NAME}_{ENV_NAME}_{parameter_name}",
+        )
 
-l_a = trainer.train(
-    learning_algorithm=learning_algorithm,
-    num_training_steps=NUM_TRAINING_STEPS, 
-    num_new_experience=NUM_NEW_EXP, 
-    max_buffer_size=BUFFER_SIZE,
-    num_initial_experiences=NUM_INIT_EXP,
-    evaluate_every_N_steps=NUM_TRAINING_STEPS // 10,
-    initial_exploration_function=uniform_random_sampling,
-    training_exploration_function=no_exploration,
-    save_after_training=SAVE_AFTER_TRAINING,
-    task_name=TASK_NAME
-    )
+    return l_a
+
+for batch_size_name in parameters.keys():
+    train_SAC_on_walker(parameter_name=batch_size_name)

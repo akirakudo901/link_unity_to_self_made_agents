@@ -486,7 +486,7 @@ class UnityOffPolicyBaseTrainer:
                 
                 # evaluate sometimes
                 if (i + 1) % (evaluate_every_N_steps) == 0:
-                    cumulative_reward = self.evaluate(learning_algorithm, num_samples=3)
+                    cumulative_reward = self.evaluate(learning_algorithm, num_samples=10)
                     cumulative_rewards.append(cumulative_reward)
                     print(f"Training loop {i+1} successfully ended: reward={cumulative_reward}.\n")
                 
@@ -534,6 +534,7 @@ class UnityOffPolicyBaseTrainer:
             raise Exception("The algorithm passed to UnityOffPolicyBaseTrainer was not an instance of " + 
                             "PolicyLearningAlgorithm - please make sure that an " +
                             "PolicyLearningAlgorithm is passed!")
+        self.terminal_cumulative_rewards = self.terminal_cumulative_rewards[-num_samples:]
         
-        cumulative_reward = sum(self.terminal_cumulative_rewards[-num_samples:]) / num_samples
+        cumulative_reward = sum(self.terminal_cumulative_rewards) / num_samples
         return cumulative_reward

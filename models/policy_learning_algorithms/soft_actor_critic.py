@@ -620,7 +620,8 @@ class SoftActorCritic(PolicyLearningAlgorithm):
         in the current directory. Defaults to True.
         :param str save_dir: Directory to which we save the figures. If not given,
         we save the figures to the current directory.
-        """        
+        """ 
+
         total_loss_history = [(self.qnet1_loss_history[i] + 
                             self.qnet2_loss_history[i] + 
                             self.policy_loss_history[i])
