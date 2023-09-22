@@ -555,7 +555,7 @@ class SoftActorCritic(PolicyLearningAlgorithm):
         :return np.ndarray action: The action the policy deems optimal as ndarray. 
         """
         state_tensor = super().get_optimal_action(state)
-        action = self.policy(obs=state_tensor.to(self.device), deterministic=True)
+        action = self.policy(obs=state_tensor.to(self.device), deterministic=True).cpu()
         return action.detach().numpy()
     
     def save(self, task_name: str, save_dir : str = None):
@@ -567,7 +567,7 @@ class SoftActorCritic(PolicyLearningAlgorithm):
         """
         save_dir = PolicyLearningAlgorithm.get_saving_directory_name(
             task_name=task_name, 
-            algorithm_name=SoftActorCritic.ALGORITHM_NAME, 
+            algorithm_name=SoftActorCritic.ALGORITHM_NAME,
             save_dir=save_dir
             )
                 

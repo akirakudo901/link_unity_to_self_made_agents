@@ -129,11 +129,11 @@ def train_DDQN_on_cartPole(parameter_name : str):
 
       l_a = trainer.train(
             learning_algorithm=algo,
-            num_training_steps=param["num_training_steps"], 
-            num_new_experience=param["num_new_exp"],
+            num_training_epochs=param["num_training_steps"], 
+            new_experience_per_epoch=param["num_new_exp"],
             max_buffer_size=param["buffer_size"],
             num_initial_experiences=param["num_init_exp"],
-            evaluate_every_N_steps=param["num_training_steps"] // 20,
+            evaluate_every_N_epochs=param["num_training_steps"] // 20,
             initial_exploration_function=uniform_random_sampling,
             training_exploration_function=eps_explore_fn,
             save_after_training=param["save_after_training"],

@@ -19,7 +19,7 @@ learning_algorithm = SoftActorCritic(
     q_net_learning_rate=1e-3, 
     policy_learning_rate=1e-3, 
     discount=0.99, 
-    temperature=0.25,
+    temperature=0.15,
     qnet_update_smoothing_coefficient=0.005,
     obs_dim_size=observation_size,
     act_dim_size=action_size, 
@@ -33,13 +33,13 @@ learning_algorithm = SoftActorCritic(
 trainer = GymOffPolicyBaseTrainer(env)
 
 # The number of training steps that will be performed
-NUM_TRAINING_STEPS = 20000
+NUM_TRAINING_STEPS = 100000
 # The number of experiences to be initlally collected before doing any training
 NUM_INIT_EXP = 3000
 # The number of experiences to collect per training step
 NUM_NEW_EXP = 1
 # The maximum size of the Buffer
-BUFFER_SIZE = 10**4
+BUFFER_SIZE = 10**5
 
 TASK_NAME = "SAC" + "_BipedalWalker"
 
@@ -66,11 +66,12 @@ def no_exploration(actions, env):
 
 l_a = trainer.train(
     learning_algorithm=learning_algorithm,
-    num_training_steps=NUM_TRAINING_STEPS, 
-    num_new_experience=NUM_NEW_EXP,
+    num_training_epochs=NUM_TRAINING_STEPS, 
+    new_experience_per_epoch=NUM_NEW_EXP,
     max_buffer_size=BUFFER_SIZE,
     num_initial_experiences=NUM_INIT_EXP,
-    evaluate_every_N_steps=NUM_TRAINING_STEPS // 20,
+    evaluate_every_N_epochs=NUM_TRAINING_STEPS // 10,
+    evaluate_N_samples=3,
     initial_exploration_function=uniform_random_sampling,
     training_exploration_function=no_exploration,
     save_after_training=True,

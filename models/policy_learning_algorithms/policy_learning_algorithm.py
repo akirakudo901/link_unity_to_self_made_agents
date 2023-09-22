@@ -18,6 +18,8 @@ class PolicyLearningAlgorithm(ABC):
 
     ALGORITHM_SAVE_DIR = "trained_algorithms"
 
+    PROGRESS_SAVING_DIR = "trained_algorithms/_in_progress"
+
     @abstractmethod
     def __init__(self, 
                  obs_dim_size : int=None, act_dim_size : int=None, 
@@ -101,8 +103,7 @@ class PolicyLearningAlgorithm(ABC):
     @staticmethod
     def get_saving_directory_name(task_name : str, algorithm_name : str, save_dir : str):
         """
-        Returns either save_dir if it is not None, or a custom name created from task_name
-        and algorithm_name.
+        Returns either save_dir if it is not None, or a custom name created from task_name.
 
         :param str task_name: The name of the task, e.g. pendulum.
         :param str algorithm_name: The name of the algorithm, e.g. SAC.
@@ -110,9 +111,20 @@ class PolicyLearningAlgorithm(ABC):
         """
         creation_time = datetime.now().strftime("%Y_%m_%d_%H_%M")
         if save_dir is None:
-            save_dir = (f"{PolicyLearningAlgorithm.ALGORITHM_SAVE_DIR}" + 
-                        f"/{algorithm_name}/{task_name}_{creation_time}")
+            save_dir = (f"{PolicyLearningAlgorithm.ALGORITHM_SAVE_DIR}/" + 
+                        f"{algorithm_name}/{task_name}_{creation_time}")
         return save_dir
+    
+    # @abstractmethod
+    def save_training_progress(task_name : str, training_id : int):
+        """
+        Abstract function which saves training progress info 
+        specific to the algorithm.
+
+        :param str task_name: name specifying the type of task.
+        :param int training_id: An integer specifying training id.
+        """
+        pass
 
 
     @abstractmethod

@@ -40,12 +40,12 @@ parameters = {
         "q_net_learning_rate"  : 1e-3,
         "policy_learning_rate" : 1e-3,
         "discount" : 0.99,
-        "temperature" : 0.08,
+        "temperature" : 0.10,
         "qnet_update_smoothing_coefficient" : 0.005,
         "pol_eval_batch_size" : 64,
         "pol_imp_batch_size" : 64,
         "update_qnet_every_N_gradient_steps" : 1,
-        "num_training_steps" : 10000,
+        "num_training_steps" : 300000,
         "num_init_exp" : 1000,
         "num_new_exp" : 1,
         "buffer_size" : 10000,
@@ -92,8 +92,6 @@ def train_SAC_on_pendulum(parameter_name : str):
                 raise Exception("Value passed as action to no_exploration was of type ", type(actions), 
                                 "but should be either a torch.tensor or np.ndarray to successfully work.") 
 
-        TASK_NAME = learning_algorithm.ALGORITHM_NAME + "_" + env.spec.id
-
         print(f"Training: {parameter_name}")
 
         param = parameters[parameter_name]
@@ -110,19 +108,22 @@ def train_SAC_on_pendulum(parameter_name : str):
             env=env
             # leave the optimizer as the default = Adam
             )
+        
+        TASK_NAME = learning_algorithm.ALGORITHM_NAME + "_" + env.spec.id
 
         l_a = trainer.train(
             learning_algorithm=learning_algorithm,
-            num_training_steps=param["num_training_steps"], 
-            num_new_experience=param["num_new_exp"],
+            num_training_epochs=param["num_training_steps"], 
+            new_experience_per_epoch=param["num_new_exp"],
             max_buffer_size=param["buffer_size"],
             num_initial_experiences=param["num_init_exp"],
-            evaluate_every_N_steps=param["num_training_steps"] // 20,
+            evaluate_every_N_epochs=param["num_training_steps"] // 20,
+            evaluate_N_samples=3,
             initial_exploration_function=uniform_random_sampling,
             training_exploration_function=no_exploration,
             save_after_training=param["save_after_training"],
             task_name=TASK_NAME,
-            render_evaluation=False
+            render_evaluation=True
             )
 
         return l_a

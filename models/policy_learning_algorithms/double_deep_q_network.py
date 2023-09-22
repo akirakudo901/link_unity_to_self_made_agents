@@ -85,13 +85,13 @@ class DoubleDeepQNetwork(PolicyLearningAlgorithm):
     def get_optimal_action(self, state):
         state_tensor = super().get_optimal_action(state)      
         state_tensor = state_tensor.to(self.device).unsqueeze(0)
-        prediction = self.dnn_policy(state_tensor)
+        prediction = self.dnn_policy(state_tensor).cpu()
         return torch.argmax(prediction).numpy()
     
     def save(self, task_name, save_dir=None):
         save_dir = PolicyLearningAlgorithm.get_saving_directory_name(
-            task_name=task_name, 
-            algorithm_name=DoubleDeepQNetwork.ALGORITHM_NAME, 
+            task_name=task_name,
+            algorithm_name=DoubleDeepQNetwork.ALGORITHM_NAME,
             save_dir=save_dir
             )
         
