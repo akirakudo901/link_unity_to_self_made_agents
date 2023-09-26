@@ -11,9 +11,9 @@ from models.trainers.gym_base_trainer import GymOffPolicyBaseTrainer
 
 # create the environment and determine specs about it
 env = gymnasium.make("BipedalWalker-v3")#, render_mode="human")
-observation_size = env.observation_space.shape[0]
-action_size = env.action_space.shape[0]
-action_ranges = tuple([(env.action_space.low[i], env.action_space.high[i]) for i in range(action_size)])
+# observation_size = env.observation_space.shape[0]
+# action_size = env.action_space.shape[0]
+# action_ranges = tuple([(env.action_space.low[i], env.action_space.high[i]) for i in range(action_size)])
 
 learning_algorithm = SoftActorCritic(
     q_net_learning_rate=1e-3, 
@@ -21,19 +21,20 @@ learning_algorithm = SoftActorCritic(
     discount=0.99, 
     temperature=0.15,
     qnet_update_smoothing_coefficient=0.005,
-    obs_dim_size=observation_size,
-    act_dim_size=action_size, 
-    act_ranges=action_ranges,
+    # obs_dim_size=observation_size,
+    # act_dim_size=action_size, 
+    # act_ranges=action_ranges,
     pol_eval_batch_size=64,
     pol_imp_batch_size=64,
-    update_qnet_every_N_gradient_steps=1
+    update_qnet_every_N_gradient_steps=1,
+    env=env
     # leave the optimizer as the default = Adam
     )
 
 trainer = GymOffPolicyBaseTrainer(env)
 
 # The number of training steps that will be performed
-NUM_TRAINING_STEPS = 100000
+NUM_TRAINING_STEPS = 10000
 # The number of experiences to be initlally collected before doing any training
 NUM_INIT_EXP = 3000
 # The number of experiences to collect per training step
@@ -76,5 +77,5 @@ l_a = trainer.train(
     training_exploration_function=no_exploration,
     save_after_training=True,
     task_name=TASK_NAME,
-    render_evaluation=True
+    render_evaluation=False
     )

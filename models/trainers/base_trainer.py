@@ -173,6 +173,9 @@ class OffPolicyBaseTrainer(ABC):
             # Show the training graph
             try:
                 plt.clf()
+                plt.title(f"{task_name} Cumulative reward")
+                plt.xlabel("Epochs")
+                plt.ylabel("Cumulative Reward")
                 plt.plot(range(0, len(cumulative_rewards)*evaluate_every_N_epochs, evaluate_every_N_epochs), cumulative_rewards)
                 plt.savefig(f"{task_name}_cumulative_reward_fig.png")
                 plt.show()

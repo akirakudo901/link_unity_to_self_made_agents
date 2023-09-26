@@ -20,14 +20,14 @@ TASK_NAME = "DDQN" + "_" + env.spec.id
 
 parameters = {
      "best_with_1e2" : { 
-          "init_eps" : 1.0, 
-          "min_eps" : 0.05, 
+          "init_eps" : 1.0,
+          "min_eps" : 0.05,
           "eps_decay" : 0.9996,
           "l_r" : 1e-2, 
           "d_r" : 0.95, 
           "soft_update_coefficient" : 5e-4,
           "update_target_every_N_updates" : 1,
-          "num_training_steps" : 10000,
+          "num_training_steps" : 5000,
           "num_init_exp" : 1000,
           "num_new_exp" : 1,
           "buffer_size" : 10000,
@@ -35,18 +35,18 @@ parameters = {
           },
       # below is inspired from https://github.com/lsimmons2/double-dqn-cartpole-solution/blob/master/double_dqn.py
       "trial" : { 
-           "init_eps" : 0.5, 
-           "min_eps" : 0.01, 
-           "eps_decay" : 0.99,
-           "l_r" : 1e-3, 
-           "d_r" : 0.99, 
-           "soft_update_coefficient" : 0.1,
-           "update_target_every_N_updates" : 1,
-           "num_training_steps" : 10000,
-           "num_init_exp" : 1000,
-           "num_new_exp" : 1,
-           "buffer_size" : 10000,
-           "save_after_training" : True
+          "init_eps" : 1.0,
+          "min_eps" : 0.05,
+          "eps_decay" : 0.9999,
+          "l_r" : 1e-2, 
+          "d_r" : 0.95, 
+          "soft_update_coefficient" : 5e-4,
+          "update_target_every_N_updates" : 1,
+          "num_training_steps" : 25000,
+          "num_init_exp" : 1000,
+          "num_new_exp" : 1,
+          "buffer_size" : 10000,
+          "save_after_training" : True
            },
       # short training to see that code executes correctly
       "for_testing" : {
@@ -133,16 +133,17 @@ def train_DDQN_on_cartPole(parameter_name : str):
             new_experience_per_epoch=param["num_new_exp"],
             max_buffer_size=param["buffer_size"],
             num_initial_experiences=param["num_init_exp"],
-            evaluate_every_N_epochs=param["num_training_steps"] // 20,
+            evaluate_every_N_epochs=param["num_training_steps"] // 10,
+            evaluate_N_samples=10,
             initial_exploration_function=uniform_random_sampling,
             training_exploration_function=eps_explore_fn,
             save_after_training=param["save_after_training"],
             task_name=TASK_NAME + f"_{param['l_r']}",
-            render_evaluation=False
+            render_evaluation=True
             )
 
       eps_adjust.show_epsilon_history()
       return l_a
 
 
-train_DDQN_on_cartPole(parameter_name="for_testing")
+train_DDQN_on_cartPole(parameter_name="trial")

@@ -7,7 +7,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-from models.trainers.gym_base_trainer import NdArrayBuffer
+from models.trainers.utils.buffer import NdArrayBuffer
 from models.policy_learning_algorithms.policy_learning_algorithm import PolicyLearningAlgorithm
 
 class DoubleDeepQNetwork(PolicyLearningAlgorithm):

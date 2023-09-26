@@ -161,7 +161,7 @@ class PolicyLearningAlgorithm(ABC):
         return self.get_optimal_action(state)
 
     @staticmethod
-    def plot_history_and_save(history : List[float], loss_source : str, 
+    def plot_history_and_save(history : List[float], loss_source : str,
                               task_name : str, save_figure : bool, save_dir : str):
         """
         Plots and saves a given loss history. If the max & min difference of loss is
@@ -173,22 +173,48 @@ class PolicyLearningAlgorithm(ABC):
         :param bool save_figure: Whether to save the figures or not.
         :param str save_dir: The directory to which we save figures.
         """
-        if save_dir == None: save_dir = "."
-        figure_name = f"{task_name}_{loss_source}_loss_history_fig.png"
 
-        # if difference is too big, apply log
+        def plot_figure(h, fig_name, loss_type, y_range=None):
+            plt.clf()
+            plt.title(f"{task_name} {loss_source} {loss_type}Loss")
+            plt.xlabel("Epochs")
+            plt.ylabel("Loss")
+            if y_range != None: plt.ylim(y_range)
+            plt.plot(range(0, len(h)), h)
+            if save_figure: plt.savefig(f"{save_dir}/{fig_name}")
+            plt.show()
+
+        if save_dir == None: save_dir = "."
+
+        # if difference is too big, create log, twice_std and
         minimum = min(history)
         if (max(history) - minimum) >= 200:
+
+            # 1 - Log loss
             # ensure that loss is greater than 0
-            history = [log2(history[i]) if minimum > 0 
-                       else log2(history[i] - minimum + 1e-6) - log2(abs(minimum)) 
+            history = [log2(history[i]) if minimum > 0
+                       else log2(history[i] - minimum + 1e-6) - log2(abs(minimum))
                        for i in range(len(history))]
             figure_name = f"{task_name}_{loss_source}_logLoss_history_fig.png"
+            plot_figure(history, figure_name, "Log")
 
-        plt.clf()
-        plt.plot(range(0, len(history)), history)
-        if save_figure: plt.savefig(f"{save_dir}/{figure_name}")
-        plt.show()
+            # 2 - STD loss
+            # show mean +- std*2
+            mean = sum(history) / len(history)
+            std = np.std(history)
+            interval = std * 4
+            figure_name = f"{task_name}_{loss_source}_stdLoss_history_fig.png"
+            plot_figure(history, figure_name, "Std", y_range=[mean - interval, mean + interval])
+
+            # 3 - Set interval loss
+            # show minimum + 10
+            figure_name = f"{task_name}_{loss_source}_setIntervalLoss_history_fig.png"
+            plot_figure(history, figure_name, "Set Interval", y_range=[minimum, minimum + 10])
+
+        # otherwise simply plot the result
+        else:
+            figure_name = f"{task_name}_{loss_source}_loss_history_fig.png"
+            plot_figure(history, figure_name, "")
 
     @staticmethod
     def set_device():
