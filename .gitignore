@@ -2,6 +2,7 @@
 *.pyc
 **/__pycache__
 # ignoring all images renderd to show reward
+/images
 *.png
 # ignoring all trained algorithms
 /trained_algorithms

@@ -170,3 +170,37 @@ import gymnasium
 # action_ranges = ((-1., 1.),)*4
 # action_multiplier = [(range[1] - range[0]) / 2 for range in action_ranges]
 # print(action_ranges, action_multiplier)
+
+from models.policy_learning_algorithms.double_deep_q_network import DoubleDeepQNetwork
+from models.policy_learning_algorithms.soft_actor_critic import SoftActorCritic
+
+# ddqn = DoubleDeepQNetwork(obs_dim_size=3, act_num_discrete=7, l_r=0.5, d_r=0.2, 
+#                    soft_update_coefficient=0.11, update_target_every_N_updates=300
+#                    )
+
+# TASK_NAME = "DDQN_Test"
+# ddqn.save_training_progress(task_name=TASK_NAME, training_id=1)
+
+# ddqn2 = DoubleDeepQNetwork(obs_dim_size=3, act_num_discrete=7, l_r=1, d_r=1, 
+#                    soft_update_coefficient=1, update_target_every_N_updates=1
+#                    )
+# ddqn2.load_training_progress(task_name=TASK_NAME, training_id=1)
+
+# ddqn2.delete_training_progress(task_name=TASK_NAME, training_id=1)
+
+# sac1 = SoftActorCritic(q_net_learning_rate=0.5, policy_learning_rate=0.4, discount=0.99,
+#                        temperature=0.2, qnet_update_smoothing_coefficient=0.005, 
+#                        pol_eval_batch_size=124, pol_imp_batch_size=124, 
+#                        update_qnet_every_N_gradient_steps=500, 
+#                        obs_dim_size=2, act_dim_size=1, act_ranges=((1, 2),))
+TASK_NAME = "SAC_Test"
+# sac1.save_training_progress(task_name=TASK_NAME, training_id=3)
+
+sac2 = SoftActorCritic(q_net_learning_rate=1, policy_learning_rate=1, discount=1,
+                       temperature=1, qnet_update_smoothing_coefficient=1, 
+                       pol_eval_batch_size=1, pol_imp_batch_size=1, 
+                       update_qnet_every_N_gradient_steps=1, 
+                       obs_dim_size=2, act_dim_size=1, act_ranges=((1, 2),))
+# sac2.load_training_progress(task_name=TASK_NAME, training_id=3)
+
+sac2.delete_training_progress(task_name=TASK_NAME, training_id=3)

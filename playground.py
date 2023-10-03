@@ -215,80 +215,95 @@ import torch
 
 # SHOWING THAT THE TWO IMPLEMENTATIONS OF FORWARD IN CLEAN RL AND MY VERSION RESULT IN IDENTICAL 
 # VALUES
-action_multiplier, action_avgs = torch.tensor([1., 2., 1.5]), torch.tensor([0.5, -1., 0.])
+# action_multiplier, action_avgs = torch.tensor([1., 2., 1.5]), torch.tensor([0.5, -1., 0.])
 
-def clean_rl_imp(mean, std, samples, log_prob):
-    # normal = torch.distributions.Normal(mean, std)
-    # x_t = normal.rsample()  # for reparameterization trick (mean + std * N(0,1))
-    x_t = samples
-    y_t = torch.tanh(x_t)
-    action = y_t * action_multiplier + action_avgs
-    # log_prob = normal.log_prob(x_t)
-    # Enforcing Action Bound
-    print("INSIDE CLEAR RL.")
-    print(f"log_prob: {log_prob}")
-    jacob = torch.log(action_multiplier * (1 - y_t.pow(2)) + 1e-6)
-    print(f"jacob: {jacob}")
-    print(f"jacob_trace??: {torch.sum(jacob, dim=1)}")
-    log_prob -= jacob
-    print(f"log_prob: {log_prob}")
-    log_prob = log_prob.sum(1, keepdim=True)
-    print(f"log_prob: {log_prob}")
-    mean = torch.tanh(mean) * action_multiplier + action_avgs
-    print("CLEAR RL END.")
-    return action, log_prob, mean
+# def clean_rl_imp(mean, std, samples, log_prob):
+#     # normal = torch.distributions.Normal(mean, std)
+#     # x_t = normal.rsample()  # for reparameterization trick (mean + std * N(0,1))
+#     x_t = samples
+#     y_t = torch.tanh(x_t)
+#     action = y_t * action_multiplier + action_avgs
+#     # log_prob = normal.log_prob(x_t)
+#     # Enforcing Action Bound
+#     print("INSIDE CLEAR RL.")
+#     print(f"log_prob: {log_prob}")
+#     jacob = torch.log(action_multiplier * (1 - y_t.pow(2)) + 1e-6)
+#     print(f"jacob: {jacob}")
+#     print(f"jacob_trace??: {torch.sum(jacob, dim=1)}")
+#     log_prob -= jacob
+#     print(f"log_prob: {log_prob}")
+#     log_prob = log_prob.sum(1, keepdim=True)
+#     print(f"log_prob: {log_prob}")
+#     mean = torch.tanh(mean) * action_multiplier + action_avgs
+#     print("CLEAR RL END.")
+#     return action, log_prob, mean
 
 
-def akira_imp(myus, sigmas, samples, log_prob):
+# def akira_imp(myus, sigmas, samples, log_prob):
 
-    def squashing_function(actions : torch.tensor):
-        squashed_neg_one_to_one = torch.tanh(actions)
-        t_device = squashed_neg_one_to_one.device
-        return (squashed_neg_one_to_one * 
-                action_multiplier.to(t_device).detach() + 
-                action_avgs.to(t_device).detach())
+#     def squashing_function(actions : torch.tensor):
+#         squashed_neg_one_to_one = torch.tanh(actions)
+#         t_device = squashed_neg_one_to_one.device
+#         return (squashed_neg_one_to_one * 
+#                 action_multiplier.to(t_device).detach() + 
+#                 action_avgs.to(t_device).detach())
 
-    def _correct_for_squash(before : torch.tensor, actions : torch.tensor):
-        multiplier = action_multiplier.to(actions.device)
-        print(f"actions: {actions}")
-        print(f"before: {before}")
-        jacobian_trace = torch.sum(torch.log(multiplier * (1 - torch.tanh(actions).pow(2)) + 1e-6), dim=2)
-        print(f"jacobian_trace: {jacobian_trace}")
-        after = before - jacobian_trace
-        return after
+#     def _correct_for_squash(before : torch.tensor, actions : torch.tensor):
+#         multiplier = action_multiplier.to(actions.device)
+#         print(f"actions: {actions}")
+#         print(f"before: {before}")
+#         jacobian_trace = torch.sum(torch.log(multiplier * (1 - torch.tanh(actions).pow(2)) + 1e-6), dim=2)
+#         print(f"jacobian_trace: {jacobian_trace}")
+#         after = before - jacobian_trace
+#         return after
 
-    # dist = torch.distributions.Normal(loc=myus, scale=sigmas) #MultivariateNormal with diagonal covariance
-    # actions_num_samples_first = dist.sample(sample_shape=(1, )).to(torch.float32)
-    print("INSIDE AKIRA RL.")
-    actions_num_samples_first = samples
-    actions = torch.transpose(actions_num_samples_first, dim0=0, dim1=1)
-    squashed = squashing_function(actions)
+#     # dist = torch.distributions.Normal(loc=myus, scale=sigmas) #MultivariateNormal with diagonal covariance
+#     # actions_num_samples_first = dist.sample(sample_shape=(1, )).to(torch.float32)
+#     print("INSIDE AKIRA RL.")
+#     actions_num_samples_first = samples
+#     actions = torch.transpose(actions_num_samples_first, dim0=0, dim1=1)
+#     squashed = squashing_function(actions)
 
-    # pure_probabilities is log_prob for each action when sampled from each normal distribution
-    # aggregating over the entire action, it becomes their sum (product of independent events but logged)
-    # log_prob = dist.log_prob(actions_num_samples_first).to(torch.float32)
-    pure_log_probabilities = torch.transpose(log_prob, dim0=0, dim1=1)
-    print(f"pure_log_probabilities: {pure_log_probabilities}")
-    before_correction = torch.sum(pure_log_probabilities, dim=2)
-    log_probs = _correct_for_squash(
-        before_correction, actions
-        )
+#     # pure_probabilities is log_prob for each action when sampled from each normal distribution
+#     # aggregating over the entire action, it becomes their sum (product of independent events but logged)
+#     # log_prob = dist.log_prob(actions_num_samples_first).to(torch.float32)
+#     pure_log_probabilities = torch.transpose(log_prob, dim0=0, dim1=1)
+#     print(f"pure_log_probabilities: {pure_log_probabilities}")
+#     before_correction = torch.sum(pure_log_probabilities, dim=2)
+#     log_probs = _correct_for_squash(
+#         before_correction, actions
+#         )
     
-    print("AKIRA RL END.")
+#     print("AKIRA RL END.")
     
-    return squashed, log_probs
+#     return squashed, log_probs
 
-myu, sigma = torch.tensor([0., 1., 2.]), torch.tensor([0.2, 0.4, 0.6])
-normal = torch.distributions.Normal(myu, sigma)
-samples = normal.rsample(sample_shape=(8, 1, )).to(torch.float32)
-log_prob = normal.log_prob(samples)
-samples_without_action_dim = torch.squeeze(samples.clone(), dim=1)
-log_prob_without_action_dim = torch.squeeze(log_prob.clone(), dim=1)
+# myu, sigma = torch.tensor([0., 1., 2.]), torch.tensor([0.2, 0.4, 0.6])
+# normal = torch.distributions.Normal(myu, sigma)
+# samples = normal.rsample(sample_shape=(8, 1, )).to(torch.float32)
+# log_prob = normal.log_prob(samples)
+# samples_without_action_dim = torch.squeeze(samples.clone(), dim=1)
+# log_prob_without_action_dim = torch.squeeze(log_prob.clone(), dim=1)
 
-act_clean, log_clean, _ = clean_rl_imp(mean=myu, std=sigma, samples=samples_without_action_dim, log_prob=log_prob_without_action_dim)
-act_akira, log_akira = akira_imp(myus=myu, sigmas=sigma, samples=samples, log_prob=log_prob)
+# act_clean, log_clean, _ = clean_rl_imp(mean=myu, std=sigma, samples=samples_without_action_dim, log_prob=log_prob_without_action_dim)
+# act_akira, log_akira = akira_imp(myus=myu, sigmas=sigma, samples=samples, log_prob=log_prob)
 
-print("CLEAN!")
-print(act_clean, log_clean)
-print("AKIRA!")
-print(act_akira, log_akira)
+# print("CLEAN!")
+# print(act_clean, log_clean)
+# print("AKIRA!")
+# print(act_akira, log_akira)
+
+# 
+
+# def save(task_name, second):
+#     print(task_name.upper() + second.lower() + "!")
+
+# def try_saving_except(call, *args, **kwargs):
+#     try:
+#         print("Saving the algorithm parameters!")
+#         call(*args, **kwargs)
+#         print("Saved the algorithm parameters successfully!")
+#     except Exception:
+#         print("Some exception occurred while saving algorithm parameters...")
+
+# try_saving_except(save, "abc", second="Second")

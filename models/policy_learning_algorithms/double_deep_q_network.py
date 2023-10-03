@@ -2,6 +2,9 @@
 A DDQN algorithm to be used as learning algorithm.
 """
 
+import os
+
+from typing import Dict
 import numpy as np
 import torch
 import torch.nn as nn
@@ -63,9 +66,10 @@ class DoubleDeepQNetwork(PolicyLearningAlgorithm):
 
         super().__init__(obs_dim_size=obs_dim_size, act_num_discrete=act_num_discrete, env=env)
 
-        self.update_target_every_N_updates = update_target_every_N_updates
-        self.soft_update_coefficient = soft_update_coefficient
+        self.learning_rate = l_r
         self.discount = d_r
+        self.soft_update_coefficient = soft_update_coefficient
+        self.update_target_every_N_updates = update_target_every_N_updates
         
         self.dnn_policy = DoubleDeepQNetwork.DNN(
             input_size=self.obs_dim_size, 
@@ -76,12 +80,11 @@ class DoubleDeepQNetwork(PolicyLearningAlgorithm):
             output_size=self.act_num_discrete
             ).to(self.device)
 
-        self.optim = optim.Adam(self.dnn_policy.parameters(), lr=l_r)
+        self.optim = optim.Adam(self.dnn_policy.parameters(), lr=self.learning_rate)
 
         self.dnn_update_counter = 0
         self.loss_history = [] # a List of floats
         
-    # "state" is a tuple of four values
     def get_optimal_action(self, state):
         state_tensor = super().get_optimal_action(state)      
         state_tensor = state_tensor.to(self.device).unsqueeze(0)
@@ -98,12 +101,36 @@ class DoubleDeepQNetwork(PolicyLearningAlgorithm):
         save_dir += ".pth"
         torch.save(self.dnn_policy.state_dict(), save_dir)
 
+    def _get_parameter_dict(self):
+        """
+        Returns a dictionary of the relevant parameters to be saved for 
+        this algorithm, to track saving progress.
+
+        :return Dict algorithm_param: The parameters of the algorithm that are saved.
+        """
+        algorithm_param = super()._get_parameter_dict()
+        algorithm_param["learning_rate"] = self.learning_rate
+        algorithm_param["discount"] = self.discount
+        algorithm_param["soft_update_coefficient"] = self.soft_update_coefficient
+        algorithm_param["update_target_every_N_updates"] = self.update_target_every_N_updates
+        algorithm_param["dnn_update_counter"] = self.dnn_update_counter
+        algorithm_param["loss_history"] = self.loss_history
+        return algorithm_param
+
     def load(self, path):
-        self.dnn_policy.load_state_dict(torch.load(path))
+        self.dnn_policy.load_state_dict(torch.load(path if path.endswith('.pth') else (path + '.pth')))
         # move to self.device
         self.dnn_policy.to(self.device)
+    
+    def _load_parameter_dict(self, dict: Dict):
+        super()._load_parameter_dict(dict)
+        self.learning_rate                 = dict["learning_rate"]
+        self.discount                      = dict["discount"]
+        self.soft_update_coefficient       = dict["soft_update_coefficient"]
+        self.update_target_every_N_updates = dict["update_target_every_N_updates"]
+        self.dnn_update_counter            = dict["dnn_update_counter"]
+        self.loss_history                  = dict["loss_history"]
         
-    # Updates the algorithm at the end of episode
     def update(self, buffer : NdArrayBuffer):
         """
         Updates the DDQN algorithms based on the given buffer.
@@ -148,7 +175,6 @@ class DoubleDeepQNetwork(PolicyLearningAlgorithm):
         self._update_target()
         self.loss_history.append(loss.item())
             
-    # Updates the target dnn by setting its values equal to that of the policy dnn
     def _update_target(self):
         # do hard update
         if self.update_target_every_N_updates != None:
@@ -162,6 +188,15 @@ class DoubleDeepQNetwork(PolicyLearningAlgorithm):
                                         param.data + 
                                         (1 - self.soft_update_coefficient) * 
                                         target_param.data)
+                
+    def _delete_saved_algorithms(self, task_name : str, training_id : int):
+        save_dir = PolicyLearningAlgorithm.get_saving_directory_name(
+            task_name=f"{task_name}_{training_id}",
+            algorithm_name=DoubleDeepQNetwork.ALGORITHM_NAME,
+            save_dir=f"{PolicyLearningAlgorithm.PROGRESS_SAVING_DIR}/{task_name}_{training_id}"
+            )
+        save_dir += ".pth"
+        os.remove(save_dir)
     
     def show_loss_history(self, task_name : str, save_figure : bool=True, save_dir : str=None):
         """

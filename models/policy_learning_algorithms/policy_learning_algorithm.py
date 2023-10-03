@@ -4,12 +4,16 @@ Base abstract class for whatever policy learning algorithm we use.
 
 from abc import ABC, abstractmethod
 from datetime import datetime
+import logging
 from math import log2
-from typing import List, Tuple, Union
+import os
+import traceback
+from typing import Dict, List, Tuple, Union
 
 import gymnasium
 import matplotlib.pyplot as plt
 import numpy as np
+import yaml
 import torch
 
 from models.trainers.utils.buffer import Buffer
@@ -62,7 +66,7 @@ class PolicyLearningAlgorithm(ABC):
         self.obs_num_discrete = obs_num_discrete
         self.act_num_discrete = act_num_discrete
         self.obs_ranges = obs_ranges
-        self.act_ranges = act_ranges 
+        self.act_ranges = act_ranges
     
     @abstractmethod
     def update(self, experiences : Buffer):
@@ -99,33 +103,24 @@ class PolicyLearningAlgorithm(ABC):
         :param str save_dir: The directory to which this policy is saved.
         """
         pass
-
-    @staticmethod
-    def get_saving_directory_name(task_name : str, algorithm_name : str, save_dir : str):
-        """
-        Returns either save_dir if it is not None, or a custom name created from task_name.
-
-        :param str task_name: The name of the task, e.g. pendulum.
-        :param str algorithm_name: The name of the algorithm, e.g. SAC.
-        :param str save_dir: The directory we save algorithms to using save().
-        """
-        creation_time = datetime.now().strftime("%Y_%m_%d_%H_%M")
-        if save_dir is None:
-            save_dir = (f"{PolicyLearningAlgorithm.ALGORITHM_SAVE_DIR}/" + 
-                        f"{algorithm_name}/{task_name}_{creation_time}")
-        return save_dir
     
-    # @abstractmethod
-    def save_training_progress(task_name : str, training_id : int):
+    @abstractmethod
+    def _get_parameter_dict(self):
         """
-        Abstract function which saves training progress info 
-        specific to the algorithm.
+        Returns a dictionary of the relevant parameters to be saved for 
+        this algorithm, to track saving progress.
 
-        :param str task_name: name specifying the type of task.
-        :param int training_id: An integer specifying training id.
+        :return Dict algorithm_param: The parameters of the algorithm that are saved.
         """
-        pass
-
+        algorithm_param = {
+            "obs_dim_size" : self.obs_dim_size,
+            "act_dim_size" : self.act_dim_size,
+            "obs_num_discrete" : self.obs_num_discrete,
+            "act_num_discrete" : self.act_num_discrete,
+            "obs_ranges" : self.obs_ranges,
+            "act_ranges" : self.act_ranges,
+        }
+        return algorithm_param
 
     @abstractmethod
     def load(self, path : str):
@@ -135,6 +130,21 @@ class PolicyLearningAlgorithm(ABC):
         :param str path: Path from which we load the algorithm.
         """
         pass
+    
+    @abstractmethod
+    def _load_parameter_dict(self, dict : Dict):
+        """
+        Loads the dictionary containing relevant parameters for 
+        this algorithm while loading previous progress.
+
+        :param Dict dict: Dictionary of parameters for the algorithm getting loaded.
+        """
+        self.obs_dim_size = dict["obs_dim_size"]
+        self.act_dim_size = dict["act_dim_size"]
+        self.obs_num_discrete = dict["obs_num_discrete"]
+        self.act_num_discrete = dict["act_num_discrete"]
+        self.obs_ranges = dict["obs_ranges"]
+        self.act_ranges = dict["act_ranges"]
 
     @abstractmethod
     def show_loss_history(self, task_name : str, save_figure : bool=True, save_dir : str=None):
@@ -150,6 +160,18 @@ class PolicyLearningAlgorithm(ABC):
         """
         pass
 
+    @abstractmethod
+    def _delete_saved_algorithms(self, task_name : str, training_id : int):
+        """
+        Deletes the saved algorithm files.
+
+        :param str task_name: Name specifying the type of task.
+        :param int training_id: An integer specifying training id.
+        """
+        pass
+
+    ########################
+    # Non-abstract methods
 
     def __call__(self, state : Union[torch.tensor, np.ndarray]):
         """
@@ -159,6 +181,155 @@ class PolicyLearningAlgorithm(ABC):
         to which this algorithm was applied.
         """
         return self.get_optimal_action(state)
+    
+    def save_training_progress(self, task_name : str, training_id : int):
+        """
+        Abstract function which saves training progress info 
+        specific to the algorithm.
+
+        :param str task_name: Name specifying the type of task.
+        :param int training_id: An integer specifying training id.
+        """
+        def try_saving_except(call, saving_the___successfully : str, *args, **kwargs):
+            try:
+                print(f"Saving the {saving_the___successfully}...", end="")
+                call(*args, **kwargs)
+                print(f"successful.")
+            except Exception:
+                print(f"\nSome exception occurred while saving the {saving_the___successfully}...")
+                logging.error(traceback.format_exc())
+        
+        # save the algorithm in the below directory for tracking progress
+        try_saving_except(self.save, saving_the___successfully="algorithm parameters", 
+                          task_name=f"{task_name}_{training_id}", 
+                          save_dir=f"{PolicyLearningAlgorithm.PROGRESS_SAVING_DIR}/{task_name}_{training_id}")
+
+        # save the yamlirized features in this algorithm
+        def save_yaml():
+            yaml_dict = self._get_parameter_dict()
+            with open(f"{PolicyLearningAlgorithm.PROGRESS_SAVING_DIR}/{task_name}_{training_id}_Algorithm_Param.yaml",
+                    'w') as yaml_file:
+                yaml.dump(yaml_dict, yaml_file)
+        
+        try_saving_except(save_yaml, saving_the___successfully="algorithm fields")
+    
+    def load_training_progress(self, task_name : str, training_id : int):
+        """
+        Abstract function which loads training progress info 
+        specific to the algorithm.
+        *This function uses load() instead of safe_load() from PyYaml.
+        This should be safe so far as we only load files created by this code;
+        if you do import codes from the outside, beware of YAML's building 
+        functionality, which builds classes others have defined that might be harmful.
+
+        :param str task_name: Name specifying the type of task.
+        :param int training_id: An integer specifying training id.
+        """
+        def try_loading_except(call, loading_the___successfully : str, *args, **kwargs):
+            try:
+                print(f"Loading the {loading_the___successfully}...", end="")
+                call(*args, **kwargs)
+                print(f"successful.")
+            except Exception:
+                print(f"\nSome exception occurred while loading the {loading_the___successfully}...")
+                logging.error(traceback.format_exc())
+        
+        # load the algorithm to track progress
+        try_loading_except(self.load, loading_the___successfully="algorithm parameters", 
+                          path=f"{PolicyLearningAlgorithm.PROGRESS_SAVING_DIR}/{task_name}_{training_id}")
+
+        # load the yamlirized features in this algorithm
+        def load_yaml():
+            with open(f"{PolicyLearningAlgorithm.PROGRESS_SAVING_DIR}/{task_name}_{training_id}_Algorithm_Param.yaml",
+                    'r') as yaml_file:
+                #should be safe so far as we only load files created by this code;
+                # if you do import codes from the outside, beware of YAML's 
+                # building functionality that might be harmful.
+                yaml_dict = yaml.load(yaml_file, Loader=yaml.Loader) 
+                self._load_parameter_dict(dict=yaml_dict)
+        
+        try_loading_except(load_yaml, loading_the___successfully="algorithm fields")
+    
+    def delete_training_progress(self, task_name : str, training_id : int):
+        """
+        Abstract function which deletes training progress info 
+        specific to the algorithm.
+        
+        :param str task_name: Name specifying the type of task.
+        :param int training_id: An integer specifying training id.
+        """
+        self._delete_saved_algorithms(task_name=task_name, training_id=training_id)
+        os.remove(f"{PolicyLearningAlgorithm.PROGRESS_SAVING_DIR}/{task_name}_{training_id}_Algorithm_Param.yaml")
+
+    ################
+    # Static methods
+
+    @staticmethod
+    def get_gym_environment_specs(env : gymnasium.Env):
+        """
+        Returns specs about an environment useful to initialize
+        learning algorithms. Raises error on Text spaces.
+
+        :param gymnasium.Env env: The environment we train the algorithm on.
+        :returns dict: Returns a dictionary holding info about the environment:
+        - obs_dim_size, the dimension size of observation space
+        - act_dim_size, the dimension size of action space
+        - obs_num_discrete, the number of discrete observations with Discrete & 
+          MultiDiscrete spaces or None for Box & MultiBinary
+        - act_num_discrete, the above for actions
+        - obs_ranges, the range of observations with Box observations or None for
+          MultiBinary & Discrete & MultiDiscrete
+        - act_ranges, the above for actions
+        """
+        def get_specs_of_space(space):
+            if isinstance(space, gymnasium.spaces.Text):
+                raise Exception("Behavior against gym Text spaces is not well-defined.")
+            elif isinstance(space, gymnasium.spaces.Box): #env should be flattened outside
+                dim_size = gymnasium.spaces.utils.flatdim(space)
+                num_discrete = None
+                ranges = tuple([(space.low[i], space.high[i]) 
+                                    for i in range(dim_size)])
+            elif isinstance(space, gymnasium.spaces.MultiBinary):
+                dim_size = gymnasium.spaces.utils.flatdim(space)
+                num_discrete, ranges = None, None
+            elif isinstance(space, gymnasium.spaces.Discrete):
+                dim_size = 1 #assuming discrete states are input as distinct integers to nn
+                num_discrete = space.n
+                ranges = None
+            elif isinstance(space, gymnasium.spaces.MultiDiscrete):
+                dim_size = len(space.nvec)
+                num_discrete = sum(space.nvec)
+                ranges = None
+            return dim_size, num_discrete, ranges
+
+        # dimension size of observation - needed to initialize policy input size
+        obs_dim_size, obs_num_discrete, obs_ranges = get_specs_of_space(env.observation_space)
+        
+        # dimension size of action - needed to initialize policy output size
+        # also returns the number of discrete actions for discrete environments,
+        # or None for continuous.
+        act_dim_size, act_num_discrete, act_ranges = get_specs_of_space(env.action_space)
+        
+        return { 
+            "obs_dim_size" : obs_dim_size, "act_dim_size" : act_dim_size, 
+            "obs_num_discrete" : obs_num_discrete, "act_num_discrete" : act_num_discrete,
+            "obs_ranges" : obs_ranges, "act_ranges" : act_ranges
+            }
+    
+    @staticmethod
+    def get_saving_directory_name(task_name : str, algorithm_name : str, save_dir : str):
+        """
+        Returns either save_dir if it is not None, or a custom name created from task_name.
+
+        :param str task_name: The name of the task, e.g. pendulum.
+        :param str algorithm_name: The name of the algorithm, e.g. SAC.
+        :param str save_dir: The directory we save algorithms to using save().
+        """
+        creation_time = datetime.now().strftime("%Y_%m_%d_%H_%M")
+        if save_dir is None:
+            save_dir = (f"{PolicyLearningAlgorithm.ALGORITHM_SAVE_DIR}/" + 
+                        f"{algorithm_name}/{task_name}_{creation_time}")
+        return save_dir
 
     @staticmethod
     def plot_history_and_save(history : List[float], loss_source : str,
@@ -226,55 +397,3 @@ class PolicyLearningAlgorithm(ABC):
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         print('Using device:', device)
         return device
-    
-    @staticmethod
-    def get_gym_environment_specs(env : gymnasium.Env):
-        """
-        Returns specs about an environment useful to initialize
-        learning algorithms. Raises error on Text spaces.
-
-        :param gymnasium.Env env: The environment we train the algorithm on.
-        :returns dict: Returns a dictionary holding info about the environment:
-        - obs_dim_size, the dimension size of observation space
-        - act_dim_size, the dimension size of action space
-        - obs_num_discrete, the number of discrete observations with Discrete & 
-          MultiDiscrete spaces or None for Box & MultiBinary
-        - act_num_discrete, the above for actions
-        - obs_ranges, the range of observations with Box observations or None for
-          MultiBinary & Discrete & MultiDiscrete
-        - act_ranges, the above for actions
-        """
-        def get_specs_of_space(space):
-            if isinstance(space, gymnasium.spaces.Text):
-                raise Exception("Behavior against gym Text spaces is not well-defined.")
-            elif isinstance(space, gymnasium.spaces.Box): #env should be flattened outside
-                dim_size = gymnasium.spaces.utils.flatdim(space)
-                num_discrete = None
-                ranges = tuple([(space.low[i], space.high[i]) 
-                                    for i in range(dim_size)])
-            elif isinstance(space, gymnasium.spaces.MultiBinary):
-                dim_size = gymnasium.spaces.utils.flatdim(space)
-                num_discrete, ranges = None, None
-            elif isinstance(space, gymnasium.spaces.Discrete):
-                dim_size = 1 #assuming discrete states are input as distinct integers to nn
-                num_discrete = space.n
-                ranges = None
-            elif isinstance(space, gymnasium.spaces.MultiDiscrete):
-                dim_size = len(space.nvec)
-                num_discrete = sum(space.nvec)
-                ranges = None
-            return dim_size, num_discrete, ranges
-
-        # dimension size of observation - needed to initialize policy input size
-        obs_dim_size, obs_num_discrete, obs_ranges = get_specs_of_space(env.observation_space)
-        
-        # dimension size of action - needed to initialize policy output size
-        # also returns the number of discrete actions for discrete environments,
-        # or None for continuous.
-        act_dim_size, act_num_discrete, act_ranges = get_specs_of_space(env.action_space)
-        
-        return { 
-            "obs_dim_size" : obs_dim_size, "act_dim_size" : act_dim_size, 
-            "obs_num_discrete" : obs_num_discrete, "act_num_discrete" : act_num_discrete,
-            "obs_ranges" : obs_ranges, "act_ranges" : act_ranges
-            }

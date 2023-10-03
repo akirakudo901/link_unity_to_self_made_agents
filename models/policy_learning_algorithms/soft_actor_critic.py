@@ -4,7 +4,7 @@ https://spinningup.openai.com/en/latest/algorithms/sac.html
 """
 
 import os
-from typing import Union, Tuple
+from typing import Dict, Union, Tuple
 
 import numpy as np
 import torch
@@ -265,7 +265,6 @@ class SoftActorCritic(PolicyLearningAlgorithm):
                  obs_dim_size : int = None,
                  act_dim_size : int = None,
                  act_ranges : Tuple[Tuple[float]] = None,
-                 optimizer : optim.Optimizer = optim.Adam,
                  env = None
                  ):
         if (obs_dim_size == None or act_dim_size == None or act_ranges == None) and env == None:
@@ -289,8 +288,8 @@ class SoftActorCritic(PolicyLearningAlgorithm):
         # two q-functions are used to approximate values during training
         self.qnet1 = SoftActorCritic.QNet(observation_size=self.obs_dim_size, action_size=self.act_dim_size).to(self.device)
         self.qnet2 = SoftActorCritic.QNet(observation_size=self.obs_dim_size, action_size=self.act_dim_size).to(self.device)
-        self.optim_qnet1 = optimizer(self.qnet1.parameters(), lr=q_net_learning_rate)
-        self.optim_qnet2 = optimizer(self.qnet2.parameters(), lr=q_net_learning_rate)
+        self.optim_qnet1 = optim.Adam(self.qnet1.parameters(), lr=q_net_learning_rate)
+        self.optim_qnet2 = optim.Adam(self.qnet2.parameters(), lr=q_net_learning_rate)
         # two target networks are updated less (e.g. every 1000 steps) to compute targets for q-function update
         self.qnet1_tar = SoftActorCritic.QNet(observation_size=self.obs_dim_size, action_size=self.act_dim_size).to(self.device)
         self.qnet2_tar = SoftActorCritic.QNet(observation_size=self.obs_dim_size, action_size=self.act_dim_size).to(self.device)
@@ -301,7 +300,7 @@ class SoftActorCritic(PolicyLearningAlgorithm):
         self.policy = SoftActorCritic.Policy(
             observation_size=self.obs_dim_size, action_size=self.act_dim_size, action_ranges=self.act_ranges
             ).to(self.device)
-        self.optim_policy = optimizer(self.policy.parameters(), lr=policy_learning_rate)
+        self.optim_policy = optim.Adam(self.policy.parameters(), lr=policy_learning_rate)
 
         self.qnet1_loss_history = [] #List of float
         self.qnet2_loss_history = [] #List of float
@@ -582,7 +581,29 @@ class SoftActorCritic(PolicyLearningAlgorithm):
         except:
             raise Exception("SAVING SOMEHOW FAILED...")
     
-    def load(self, loaded_sac_name : str = None):
+    def _get_parameter_dict(self):
+        """
+        Returns a dictionary of the relevant parameters to be saved for 
+        this algorithm, to track saving progress.
+
+        :return Dict algorithm_param: The parameters of the algorithm that are saved.
+        """
+        algorithm_param = super()._get_parameter_dict()
+        algorithm_param["q_net_l_r"] = self.q_net_l_r
+        algorithm_param["pol_l_r"] = self.pol_l_r
+        algorithm_param["d_r"] = self.d_r
+        algorithm_param["alpha"] = self.alpha
+        algorithm_param["tau"] = self.tau
+        algorithm_param["pol_eval_batch_size"] = self.pol_eval_batch_size
+        algorithm_param["pol_imp_batch_size"] = self.pol_imp_batch_size
+        algorithm_param["update_qnet_every_N_gradient_steps"] = self.update_qnet_every_N_gradient_steps
+        algorithm_param["qnet_update_counter"] = self.qnet_update_counter
+        algorithm_param["qnet1_loss_history"] = self.qnet1_loss_history
+        algorithm_param["qnet2_loss_history"] = self.qnet2_loss_history
+        algorithm_param["policy_loss_history"] = self.policy_loss_history
+        return algorithm_param
+    
+    def load(self, path : str = None):
         """
         AS OF RIGHT NOW, THIS REQUIRES THAT THE LOADED ALGORITHM HAS IDENTICAL POLICY AND QNET 
         STRUCTURE AS THE CURRENT SELF ALGORITHM.
@@ -593,21 +614,47 @@ class SoftActorCritic(PolicyLearningAlgorithm):
         loaded_sac_name is everything that specifies an algorithm up to the time of creation;
         e.g. "trained_algorithms/SAC/walker_2023_07_25_09_52"
 
-        :param str loaded_sac_name: The name of the directory holding the policy to be loaded, 
+        :param str path: The path to the directory holding the policy to be loaded, 
         defaults to None.
         An example of format will be "trained_algorithms/SAC/walker_2023_07_25_09_52/".
         """
-        if not loaded_sac_name.endswith("/"): loaded_sac_name += "/"
+        if not path.endswith("/"): path += "/"
         
         suffix =  ".pth"
         try: 
-            self.policy.load_state_dict(   torch.load(loaded_sac_name + "policy"    + suffix))
-            self.qnet1.load_state_dict(    torch.load(loaded_sac_name + "qnet1"     + suffix))
-            self.qnet2.load_state_dict(    torch.load(loaded_sac_name + "qnet2"     + suffix))
-            self.qnet1_tar.load_state_dict(torch.load(loaded_sac_name + "qnet1_tar" + suffix))
-            self.qnet2_tar.load_state_dict(torch.load(loaded_sac_name + "qnet2_tar" + suffix))
+            self.policy.load_state_dict(   torch.load(path + "policy"    + suffix))
+            self.qnet1.load_state_dict(    torch.load(path + "qnet1"     + suffix))
+            self.qnet2.load_state_dict(    torch.load(path + "qnet2"     + suffix))
+            self.qnet1_tar.load_state_dict(torch.load(path + "qnet1_tar" + suffix))
+            self.qnet2_tar.load_state_dict(torch.load(path + "qnet2_tar" + suffix))
         except:
             raise Exception("LOADING SOMEHOW FAILED...")
+        
+    def _load_parameter_dict(self, dict : Dict):
+        super()._load_parameter_dict(dict)
+        self.q_net_l_r = dict["q_net_l_r"]
+        self.pol_l_r   = dict["pol_l_r"]
+        self.d_r       = dict["d_r"]
+        self.alpha     = dict["alpha"]
+        self.tau       = dict["tau"]
+        self.pol_eval_batch_size                = dict["pol_eval_batch_size"]
+        self.pol_imp_batch_size                 = dict["pol_imp_batch_size"]
+        self.update_qnet_every_N_gradient_steps = dict["update_qnet_every_N_gradient_steps"]
+        self.qnet_update_counter                = dict["qnet_update_counter"]
+        self.qnet1_loss_history                 = dict["qnet1_loss_history"]
+        self.qnet2_loss_history                 = dict["qnet2_loss_history"]
+        self.policy_loss_history                = dict["policy_loss_history"]
+
+    def _delete_saved_algorithms(self, task_name : str, training_id : int):
+        save_dir = PolicyLearningAlgorithm.get_saving_directory_name(
+            task_name=f"{task_name}_{training_id}",
+            algorithm_name=SoftActorCritic.ALGORITHM_NAME,
+            save_dir=f"{PolicyLearningAlgorithm.PROGRESS_SAVING_DIR}/{task_name}_{training_id}"
+            )
+                
+        if os.path.exists(save_dir):
+            for file in os.listdir(save_dir): os.remove(f"{save_dir}/{file}")
+            os.rmdir(save_dir)
     
     def show_loss_history(self, task_name : str, save_figure : bool=True, save_dir : str=None):
         """
