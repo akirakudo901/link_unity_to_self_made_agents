@@ -189,11 +189,11 @@ class DoubleDeepQNetwork(PolicyLearningAlgorithm):
                                         (1 - self.soft_update_coefficient) * 
                                         target_param.data)
                 
-    def _delete_saved_algorithms(self, task_name : str, training_id : int):
+    def _delete_saved_algorithms(self, dir : str, task_name : str, training_id : int):
         save_dir = PolicyLearningAlgorithm.get_saving_directory_name(
             task_name=f"{task_name}_{training_id}",
             algorithm_name=DoubleDeepQNetwork.ALGORITHM_NAME,
-            save_dir=f"{PolicyLearningAlgorithm.PROGRESS_SAVING_DIR}/{task_name}_{training_id}"
+            save_dir=f"{dir}/{task_name}_{training_id}"
             )
         save_dir += ".pth"
         os.remove(save_dir)

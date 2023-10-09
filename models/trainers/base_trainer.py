@@ -4,6 +4,7 @@ An abstract environment-agnostic base trainer class to be inherited from.
 
 from abc import ABC, abstractmethod
 import logging
+import os
 from timeit import default_timer as timer
 import traceback
 from typing import List
@@ -16,6 +17,7 @@ from models.policy_learning_algorithms.policy_learning_algorithm import PolicyLe
 class OffPolicyBaseTrainer(ABC):
 
     BUFFER_IMPLEMENTATION = NdArrayBuffer
+    PROGRESS_SAVING_DIR = os.path.join("trained_algorithms", "_in_progress")
 
     @abstractmethod
     def __init__(self, env):
@@ -202,3 +204,32 @@ class OffPolicyBaseTrainer(ABC):
         :return float: The cumulative reward as result of evaluation.
         """
         pass
+
+    def save_training_progress(self, task_name : str, training_id : int,
+                               learning_algorithm):
+        """
+        Saves the current training progress into an intermediate
+        form as combinations of YAML and pth files, with given
+        task name and training id.
+        """
+        # save policy learning algorithm
+        # self.learning_algorithm.
+        """
+        Have to save:
+        - policy learning algorithm
+        - buffer
+        - learning state
+        - environment (maybe just the name?)
+        """
+        #     learning_algorithm : PolicyLearningAlgorithm,
+        #     num_training_epochs : int,
+        #     new_experience_per_epoch : int,
+        #     max_buffer_size : int,
+        #     num_initial_experiences : int,
+        #     evaluate_every_N_epochs : int,
+        #     evaluate_N_samples : int,
+        #     initial_exploration_function,
+        #     training_exploration_function,
+        #     save_after_training : bool,
+        #     task_name : str
+            

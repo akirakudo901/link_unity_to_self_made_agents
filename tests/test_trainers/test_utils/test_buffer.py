@@ -1,5 +1,6 @@
 
 import copy
+import os
 import unittest
 
 import numpy as np
@@ -306,6 +307,35 @@ class TestNdArrayBuffer(TestListBuffer):
         self.assertTrue(self.exp1.is_equal(get_exp_at_i(1)))
         self.assertTrue(self.exp3.is_equal(get_exp_at_i(2)))
 
+    def test_save_AND_load(self):
+        max_size1, obs_shape1, act_shape1 = 32, (2,), (3,)
+        bf1 = NdArrayBuffer(max_size=max_size1, obs_shape=obs_shape1, act_shape=act_shape1)
+        bf1.append_experience(obs=np.array([1, 2]), act=np.array([3, 11, 23]), 
+                              rew=1.0, don=True, next_obs=np.array([33, 99]))
+        bf1.save(save_dir=os.path.join("tests", "test_trainers", "test_utils"), 
+                 file_name="Test_Buffer")
+        expected_experience : Experience = bf1.sample_random_experiences(1)
+        
+        max_size2, obs_shape2, act_shape2 = 300, (1,), (1,)
+        bf2 = NdArrayBuffer(max_size=max_size2, obs_shape=obs_shape2, act_shape=act_shape2)
+        bf2.load(path=os.path.join("tests", "test_trainers", "test_utils", "Test_Buffer.npz"))
+        actual_experience : Experience = bf2.sample_random_experiences(1)
+
+        self.assertNotEqual(max_size1,   max_size2)
+        self.assertNotEqual(obs_shape1, obs_shape2)
+        self.assertNotEqual(act_shape1, act_shape2)
+        # compare the loaded and actual experiences
+        self.assertTrue(np.array_equal(expected_experience[0], actual_experience[0])) #obs
+        self.assertTrue(np.array_equal(expected_experience[1], actual_experience[1])) #action
+        self.assertEqual(expected_experience[2], actual_experience[2]) #reward
+        self.assertEqual(expected_experience[3], actual_experience[3]) #done
+        self.assertTrue(np.array_equal(expected_experience[4], actual_experience[4])) #next_obs
+        # compare the loaded buffer
+        self.assertEqual(bf2.max_size, max_size1)
+        self.assertEqual(bf2.obs_shape, obs_shape1)
+        self.assertEqual(bf2.act_shape, act_shape1)
+        # then remove the saved npz
+        os.remove(os.path.join("tests", "test_trainers", "test_utils", "Test_Buffer.npz"))
 
 if __name__ == "__main__":
     unittest.main()

@@ -6,8 +6,9 @@ NdArrayBuffer should be faster than ListBuffer and thus should be used.
 """
 
 from abc import ABC, abstractmethod
+import os
 import random
-from typing import List
+from typing import List, Tuple
 
 import numpy as np
 
@@ -48,8 +49,8 @@ class Buffer(ABC):
         Returns num_samples random experiences taken from the buffer, returning
         numpy arrays for corresponding components.
         Takes in a seed for reproducibility.
-        :param int num_samples: The number of samples we pick. The returned number of
-        samples is the minimum of this and the size of the buffer.
+        :param int num_samples: The number of samples we pick. The returned number of \
+            samples is the minimum of this and the size of the buffer.
         :param int seed: The seed value useful for reproducible sampling. Not applied if None.
         """
     
@@ -66,6 +67,26 @@ class Buffer(ABC):
         Shuffle the experiences held in this buffer such that accessing the first
         N experiences becomes random sampling.
         """
+
+    @abstractmethod
+    def save(self, save_dir : str, file_name : str):
+        """
+        Saves the experiences held in this buffer to the given saving
+        directory with the given file name.        
+
+        :param str save_dir: The directory to which we save the buffer data.
+        :param str file_name: The name of the saved file.
+        """
+        pass
+
+    @abstractmethod
+    def load(self, path : str):
+        """
+        Loads the experiences held in a file located at the given path.
+
+        :param str path: The path to the file holding experience data.
+        """
+        pass
 
 class ListBuffer(Buffer):
     """
@@ -148,6 +169,14 @@ class ListBuffer(Buffer):
     def shuffle(self):
         random.shuffle(self._list)
 
+    def save(self, save_dir : str, file_name : str):
+        raise Exception("ListBuffer will not support saving and loading simply because\
+                        I am lazy to do so.")
+    
+    def load(self, path : str):
+        raise Exception("ListBuffer will not support saving and loading simply because\
+                        I am lazy to do so.")
+
 class NdArrayBuffer(Buffer):
     """
     A NdArrayBuffer holds experiences as the following:
@@ -162,14 +191,14 @@ class NdArrayBuffer(Buffer):
     https://unity-technologies.github.io/ml-agents/Python-LLAPI-Documentation/#mlagents_envs.base_env
     """
 
-    def __init__(self, max_size : int, obs_shape, act_shape):
+    def __init__(self, max_size : int, obs_shape : Tuple[int], act_shape : Tuple[int]):
         """
         Initialize a numpy buffer with max_buffer_size capacity which we control
         based on 0-based indicing with the current and max sizes.
-        :param int max_buffer_size: The maximum size of the buffer. We allocate this 
-        size of memory when initializing this buffer.
-        :param obs_shape: The shape of the osbervation space.
-        :param act_shape: The shape of the action space.
+        :param int max_size: The maximum size of the buffer. We allocate this \
+            size of memory when initializing this buffer.
+        :param Tuple[int] obs_shape: The shape of the osbervation space.
+        :param Tuple[int] act_shape: The shape of the action space.
         """
         self.obs      = np.empty(shape=[max_size] + list(obs_shape), dtype=np.float32)
         self.actions  = np.empty(shape=[max_size] + list(act_shape), dtype=np.float32)
@@ -177,6 +206,7 @@ class NdArrayBuffer(Buffer):
         self.dones    = np.empty(shape=[max_size],                   dtype=np.float32)
         self.next_obs = np.empty(shape=[max_size] + list(obs_shape), dtype=np.float32)
         
+        self.obs_shape, self.act_shape = obs_shape, act_shape
         self._ptr, self._size, self.max_size = 0, 0, max_size
     
     def append_experience(self, obs : np.ndarray, act : np.ndarray, rew : float, don : bool, next_obs : np.ndarray):
@@ -272,11 +302,11 @@ class NdArrayBuffer(Buffer):
         Returns num_samples random experiences taken from the buffer, returning
         numpy arrays for corresponding components.
         Takes in a seed for reproducibility.
-        :param int num_samples: The number of samples we pick. The returned number of
-        samples is the minimum of this and the size of the buffer.
+        :param int num_samples: The number of samples we pick. The returned number of \
+            samples is the minimum of this and the size of the buffer.
         :param int seed: The seed value useful for reproducible sampling. Not applied if None.
-        :returns Tuple[np.ndarray]: Returns a tuple of numpy arrays corresponding to the transitions:
-        observations, actions, rewards, done flags and next observations.
+        :returns Tuple[np.ndarray]: Returns a tuple of numpy arrays corresponding to the transitions: \
+            observations, actions, rewards, done flags and next observations.
         """
         rng = np.random.default_rng(seed=seed)
         num_samples = min(num_samples, self._size) #adjust num_samples to not exceed buffer size
@@ -293,3 +323,31 @@ class NdArrayBuffer(Buffer):
         """
         raise Exception("Shuffling of this buffer class is not supported; please use\
                         sample_random_experiences in order to get experiences from a shuffled buffer.")
+    
+    def save(self, save_dir : str, file_name : str):
+        if not file_name.endswith(".npz"): file_name += ".npz"
+        # create / overwrite the current numpy array object
+        open(os.path.join(save_dir, file_name), 'w').close()
+
+        np.savez_compressed(file=os.path.join(save_dir, file_name), 
+                            obs=self.obs, actions=self.actions,
+                            rewards=self.rewards, dones=self.dones, 
+                            next_obs=self.next_obs,
+                            obs_shape=np.array(self.obs_shape),
+                            act_shape=np.array(self.act_shape),
+                            _ptr=np.array(self._ptr),
+                            _size=np.array(self._size),
+                            max_size=np.array(self.max_size))
+
+    def load(self, path : str):
+        np_arrs = np.load(path)
+        self.obs       = np_arrs["obs"]
+        self.actions   = np_arrs["actions"]
+        self.rewards   = np_arrs["rewards"]
+        self.dones     = np_arrs["dones"]
+        self.next_obs  = np_arrs["next_obs"]
+        self.obs_shape = tuple(np_arrs["obs_shape"])
+        self.act_shape = tuple(np_arrs["act_shape"])
+        self._ptr      = int(np_arrs["_ptr"])
+        self._size     = int(np_arrs["_size"])
+        self.max_size  = int(np_arrs["max_size"])

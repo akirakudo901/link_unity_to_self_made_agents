@@ -22,8 +22,6 @@ class PolicyLearningAlgorithm(ABC):
 
     ALGORITHM_SAVE_DIR = "trained_algorithms"
 
-    PROGRESS_SAVING_DIR = "trained_algorithms/_in_progress"
-
     @abstractmethod
     def __init__(self, 
                  obs_dim_size : int=None, act_dim_size : int=None, 
@@ -161,10 +159,11 @@ class PolicyLearningAlgorithm(ABC):
         pass
 
     @abstractmethod
-    def _delete_saved_algorithms(self, task_name : str, training_id : int):
+    def _delete_saved_algorithms(self, dir : str, task_name : str, training_id : int):
         """
         Deletes the saved algorithm files.
-
+        
+        :param str dir: String specifying the path in which the deleted data is held.
         :param str task_name: Name specifying the type of task.
         :param int training_id: An integer specifying training id.
         """
@@ -182,11 +181,11 @@ class PolicyLearningAlgorithm(ABC):
         """
         return self.get_optimal_action(state)
     
-    def save_training_progress(self, task_name : str, training_id : int):
+    def save_training_progress(self, dir : str, task_name : str, training_id : int):
         """
-        Abstract function which saves training progress info 
-        specific to the algorithm.
+        Saves training progress info specific to the algorithm in the given directory.
 
+        :param str dir: String specifying the path to which we save.
         :param str task_name: Name specifying the type of task.
         :param int training_id: An integer specifying training id.
         """
@@ -202,26 +201,26 @@ class PolicyLearningAlgorithm(ABC):
         # save the algorithm in the below directory for tracking progress
         try_saving_except(self.save, saving_the___successfully="algorithm parameters", 
                           task_name=f"{task_name}_{training_id}", 
-                          save_dir=f"{PolicyLearningAlgorithm.PROGRESS_SAVING_DIR}/{task_name}_{training_id}")
+                          save_dir=f"{dir}/{task_name}_{training_id}")
 
         # save the yamlirized features in this algorithm
         def save_yaml():
             yaml_dict = self._get_parameter_dict()
-            with open(f"{PolicyLearningAlgorithm.PROGRESS_SAVING_DIR}/{task_name}_{training_id}_Algorithm_Param.yaml",
+            with open(f"{dir}/{task_name}_{training_id}_Algorithm_Param.yaml",
                     'w') as yaml_file:
                 yaml.dump(yaml_dict, yaml_file)
         
         try_saving_except(save_yaml, saving_the___successfully="algorithm fields")
     
-    def load_training_progress(self, task_name : str, training_id : int):
+    def load_training_progress(self, dir : str, task_name : str, training_id : int):
         """
-        Abstract function which loads training progress info 
-        specific to the algorithm.
+        Loads training progress info specific to the algorithm from the given directory.
         *This function uses load() instead of safe_load() from PyYaml.
         This should be safe so far as we only load files created by this code;
         if you do import codes from the outside, beware of YAML's building 
         functionality, which builds classes others have defined that might be harmful.
-
+        
+        :param str dir: String specifying the path from which we load.
         :param str task_name: Name specifying the type of task.
         :param int training_id: An integer specifying training id.
         """
@@ -236,11 +235,11 @@ class PolicyLearningAlgorithm(ABC):
         
         # load the algorithm to track progress
         try_loading_except(self.load, loading_the___successfully="algorithm parameters", 
-                          path=f"{PolicyLearningAlgorithm.PROGRESS_SAVING_DIR}/{task_name}_{training_id}")
+                          path=f"{dir}/{task_name}_{training_id}")
 
         # load the yamlirized features in this algorithm
         def load_yaml():
-            with open(f"{PolicyLearningAlgorithm.PROGRESS_SAVING_DIR}/{task_name}_{training_id}_Algorithm_Param.yaml",
+            with open(f"{dir}/{task_name}_{training_id}_Algorithm_Param.yaml",
                     'r') as yaml_file:
                 #should be safe so far as we only load files created by this code;
                 # if you do import codes from the outside, beware of YAML's 
@@ -250,16 +249,16 @@ class PolicyLearningAlgorithm(ABC):
         
         try_loading_except(load_yaml, loading_the___successfully="algorithm fields")
     
-    def delete_training_progress(self, task_name : str, training_id : int):
+    def delete_training_progress(self, dir : str, task_name : str, training_id : int):
         """
-        Abstract function which deletes training progress info 
-        specific to the algorithm.
+        Deletes training progress info specific to the algorithm.
         
+        :param str dir: String specifying the path in which the deleted info is stored.
         :param str task_name: Name specifying the type of task.
         :param int training_id: An integer specifying training id.
         """
         self._delete_saved_algorithms(task_name=task_name, training_id=training_id)
-        os.remove(f"{PolicyLearningAlgorithm.PROGRESS_SAVING_DIR}/{task_name}_{training_id}_Algorithm_Param.yaml")
+        os.remove(f"{dir}/{task_name}_{training_id}_Algorithm_Param.yaml")
 
     ################
     # Static methods

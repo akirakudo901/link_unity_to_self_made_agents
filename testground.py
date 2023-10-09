@@ -193,14 +193,27 @@ from models.policy_learning_algorithms.soft_actor_critic import SoftActorCritic
 #                        pol_eval_batch_size=124, pol_imp_batch_size=124, 
 #                        update_qnet_every_N_gradient_steps=500, 
 #                        obs_dim_size=2, act_dim_size=1, act_ranges=((1, 2),))
-TASK_NAME = "SAC_Test"
+# TASK_NAME = "SAC_Test"
 # sac1.save_training_progress(task_name=TASK_NAME, training_id=3)
 
-sac2 = SoftActorCritic(q_net_learning_rate=1, policy_learning_rate=1, discount=1,
-                       temperature=1, qnet_update_smoothing_coefficient=1, 
-                       pol_eval_batch_size=1, pol_imp_batch_size=1, 
-                       update_qnet_every_N_gradient_steps=1, 
-                       obs_dim_size=2, act_dim_size=1, act_ranges=((1, 2),))
+# sac2 = SoftActorCritic(q_net_learning_rate=1, policy_learning_rate=1, discount=1,
+#                        temperature=1, qnet_update_smoothing_coefficient=1, 
+#                        pol_eval_batch_size=1, pol_imp_batch_size=1, 
+#                        update_qnet_every_N_gradient_steps=1, 
+#                        obs_dim_size=2, act_dim_size=1, act_ranges=((1, 2),))
 # sac2.load_training_progress(task_name=TASK_NAME, training_id=3)
 
-sac2.delete_training_progress(task_name=TASK_NAME, training_id=3)
+# sac2.delete_training_progress(task_name=TASK_NAME, training_id=3)
+from models.trainers.utils.buffer import NdArrayBuffer
+
+bf1 = NdArrayBuffer(max_size=32, obs_shape=(2,), act_shape=(3,))
+bf1.append_experience(obs=np.array([1, 2]), act=np.array([3, 11, 23]), 
+                      rew=1.0, don=True, next_obs=np.array([33, 99]))
+bf1.save(save_dir=".", file_name="Test_Buffer")
+result = bf1.sample_random_experiences(1)
+print(f"from bf1: {result}")
+
+bf2 = NdArrayBuffer(max_size=300, obs_shape=(1,), act_shape=(1,))
+bf2.load(path="./Test_Buffer.npz")
+result = bf2.sample_random_experiences(1)
+print(f"from bf2: {result}")
