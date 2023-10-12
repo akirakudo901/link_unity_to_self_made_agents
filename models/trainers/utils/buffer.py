@@ -340,6 +340,7 @@ class NdArrayBuffer(Buffer):
                             max_size=np.array(self.max_size))
 
     def load(self, path : str):
+        if not path.endswith(".npz"): path += ".npz"
         np_arrs = np.load(path)
         self.obs       = np_arrs["obs"]
         self.actions   = np_arrs["actions"]

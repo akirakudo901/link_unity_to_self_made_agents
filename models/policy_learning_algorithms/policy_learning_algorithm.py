@@ -355,6 +355,7 @@ class PolicyLearningAlgorithm(ABC):
             plt.show()
 
         if save_dir == None: save_dir = "."
+        if not os.path.exists(save_dir): os.mkdir(save_dir)
 
         # if difference is too big, create log, twice_std and
         minimum = min(history)

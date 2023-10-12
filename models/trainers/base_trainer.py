@@ -126,6 +126,19 @@ class OffPolicyBaseTrainer(ABC):
         :param int training_id: The training id that specifies the training process.
         :return PolicyLearningAlgorithm: The trained algorithm.
         """
+        if os.path.exists(os.path.join(OffPolicyBaseTrainer.PROGRESS_SAVING_DIR, 
+                                       f"{task_name}_{training_id}_folder")):
+            try:
+                algo = self.resume_training(learning_algorithm=learning_algorithm,
+                                            training_exploration_function=training_exploration_function,
+                                            task_name=task_name,
+                                            training_id=training_id,
+                                            training_exploration_function_name=training_exploration_function_name)
+                return algo
+            except Exception:
+                logging.error(traceback.format_exc())
+                print("Loading a previous progress was unsuccessful...")
+
         start_time = timer()
         
         try:
@@ -324,7 +337,7 @@ class OffPolicyBaseTrainer(ABC):
                         evaluate_N_samples=evaluate_N_samples,
                         training_exploration_function_name=training_exploration_function_name,
                         save_after_training=save_after_training,
-                        training_epochs_so_far=training_epochs_so_far,
+                        training_epochs_so_far=i,
                         time_so_far=time_so_far,
                         cumulative_rewards=cumulative_rewards,
                         environment_name=self.env_name
@@ -354,9 +367,10 @@ class OffPolicyBaseTrainer(ABC):
                 plt.xlabel("Epochs")
                 plt.ylabel("Cumulative Reward")
                 plt.plot(range(0, len(cumulative_rewards)*evaluate_every_N_epochs, evaluate_every_N_epochs), cumulative_rewards)
-                plt.savefig(f"{task_name}_cumulative_reward_fig.png")
+                plt.savefig(os.path.join("images", task_name, f"{task_name}_cumulative_reward_fig.png"))
                 plt.show()
-                learning_algorithm.show_loss_history(task_name=task_name, save_figure=True, save_dir=None)
+                learning_algorithm.show_loss_history(task_name=task_name, save_figure=True, 
+                                                     save_dir=os.path.join("images", task_name))
             except Exception:
                 logging.error(traceback.format_exc())
     
@@ -477,7 +491,7 @@ class OffPolicyBaseTrainer(ABC):
             "task_name" : task_name,
             # 2/Elements otherwise used to track progress
             "training_epochs_so_far" : training_epochs_so_far,
-            "timer_so_far" : time_so_far, #i.e. the time we have spent so far in training
+            "time_so_far" : time_so_far, #i.e. the time we have spent so far in training
             "cumulative_rewards" : cumulative_rewards,
             # 3/ The environment - just the name for now, to
             # ensure that we are restarting the training with the
