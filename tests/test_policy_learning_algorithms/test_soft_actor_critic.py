@@ -240,5 +240,72 @@ class TestSoftActorCritic_Policy(unittest.TestCase):
 
         testSAC.update(experiences)
     
+class TestSoftActorCritic(unittest.TestCase):
+    """
+    Mostly to test all functionalities that are not specific to the 
+    policy or the qnets.
+    """
+    
+    def test_get_parameter_dict_and_load_parameter_dict(self):
+        # establish two different SACs
+        sac1 = SoftActorCritic(q_net_learning_rate= (qlr1 := 0.01),
+                               policy_learning_rate= (plr1 := 0.02),
+                               discount= (disc1 := 0.03),
+                               temperature= (temp1 := 0.04),
+                               qnet_update_smoothing_coefficient= (qusc1 := 0.05),
+                               pol_eval_batch_size= (pebs1 := 100),
+                               pol_imp_batch_size= (pibs1 := 200),
+                               update_qnet_every_N_gradient_steps= (Nsteps1 := 300),
+                               obs_dim_size= (obs_dims_size1 := 10),
+                               act_dim_size= (act_dim_size1 := 2),
+                               act_ranges= (act_ranges_1 := ((1, 2),(3, 4))))
+        sac1.qnet_update_counter = (qnet_update_counter1 := 1000)
+        sac1.qnet1_loss_history = (qnet1_loss_history1 := [1, 2, 4])
+        sac1.qnet2_loss_history = (qnet2_loss_history1 := [4, 11, 23])
+        sac1.policy_loss_history = (policy_loss_history1 := [11, 12, 33])
+
+        sac2 = SoftActorCritic(q_net_learning_rate= (qlr2 := 1.00),
+                               policy_learning_rate= (plr2 := 1.00),
+                               discount= (disc2 := 1.00),
+                               temperature= (temp2 := 1.00),
+                               qnet_update_smoothing_coefficient= (qusc2 := 1.00),
+                               pol_eval_batch_size= (pebs2 := 1),
+                               pol_imp_batch_size= (pibs2 := 1),
+                               update_qnet_every_N_gradient_steps= (Nsteps2 := 1),
+                               obs_dim_size= (obs_dims_size2 := 1),
+                               act_dim_size= (act_dim_size2 := 1),
+                               act_ranges= (act_ranges_2 := ((1, 2),)))
+        # ensure their parameters are not equal
+        self.assertNotEqual(qlr1, qlr2)
+        self.assertNotEqual(plr1, plr2)
+        self.assertNotEqual(disc1, disc2)
+        self.assertNotEqual(temp1, temp2)
+        self.assertNotEqual(qusc1, qusc2)
+        self.assertNotEqual(pebs1, pebs2)
+        self.assertNotEqual(pibs1, pibs2)
+        self.assertNotEqual(Nsteps1, Nsteps2)
+        self.assertNotEqual(obs_dims_size1, obs_dims_size2)
+        self.assertNotEqual(act_dim_size1, act_dim_size2)
+        self.assertNotEqual(act_ranges_1, act_ranges_2)
+        # then load parameters from one to the other
+        param_dict = sac1._get_parameter_dict()
+        sac2._load_parameter_dict(param_dict)
+        # finally compare the parameters now
+        self.assertEqual(qlr1, sac2.q_net_l_r)
+        self.assertEqual(plr1, sac2.pol_l_r)
+        self.assertEqual(disc1, sac2.d_r)
+        self.assertEqual(temp1, sac2.alpha)
+        self.assertEqual(qusc1, sac2.tau)
+        self.assertEqual(pebs1, sac2.pol_eval_batch_size)
+        self.assertEqual(pibs1, sac2.pol_imp_batch_size)
+        self.assertEqual(Nsteps1, sac2.update_qnet_every_N_gradient_steps)
+        self.assertEqual(obs_dims_size1, sac2.obs_dim_size)
+        self.assertEqual(act_dim_size1, sac2.act_dim_size)
+        self.assertEqual(act_ranges_1, sac2.act_ranges)
+        self.assertEqual(qnet_update_counter1, sac2.qnet_update_counter)
+        self.assertEqual(qnet1_loss_history1, sac2.qnet1_loss_history)
+        self.assertEqual(qnet2_loss_history1, sac2.qnet2_loss_history)
+        self.assertEqual(policy_loss_history1, sac2.policy_loss_history)
+    
 if __name__ == "__main__":
     unittest.main()

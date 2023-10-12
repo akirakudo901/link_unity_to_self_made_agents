@@ -632,14 +632,17 @@ class SoftActorCritic(PolicyLearningAlgorithm):
         
     def _load_parameter_dict(self, dict : Dict):
         super()._load_parameter_dict(dict)
-        self.q_net_l_r = dict["q_net_l_r"]
-        self.pol_l_r   = dict["pol_l_r"]
-        self.d_r       = dict["d_r"]
-        self.alpha     = dict["alpha"]
-        self.tau       = dict["tau"]
-        self.pol_eval_batch_size                = dict["pol_eval_batch_size"]
-        self.pol_imp_batch_size                 = dict["pol_imp_batch_size"]
-        self.update_qnet_every_N_gradient_steps = dict["update_qnet_every_N_gradient_steps"]
+        self.__init__(q_net_learning_rate=dict["q_net_l_r"], 
+                      policy_learning_rate=dict["pol_l_r"],
+                      discount=dict["d_r"],
+                      temperature=dict["alpha"],
+                      qnet_update_smoothing_coefficient=dict["tau"],
+                      pol_eval_batch_size=dict["pol_eval_batch_size"],
+                      pol_imp_batch_size=dict["pol_imp_batch_size"],
+                      update_qnet_every_N_gradient_steps=dict["update_qnet_every_N_gradient_steps"],
+                      obs_dim_size=self.obs_dim_size,
+                      act_dim_size=self.act_dim_size,
+                      act_ranges=self.act_ranges)
         self.qnet_update_counter                = dict["qnet_update_counter"]
         self.qnet1_loss_history                 = dict["qnet1_loss_history"]
         self.qnet2_loss_history                 = dict["qnet2_loss_history"]

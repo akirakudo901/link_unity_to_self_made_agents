@@ -124,12 +124,14 @@ class DoubleDeepQNetwork(PolicyLearningAlgorithm):
     
     def _load_parameter_dict(self, dict: Dict):
         super()._load_parameter_dict(dict)
-        self.learning_rate                 = dict["learning_rate"]
-        self.discount                      = dict["discount"]
-        self.soft_update_coefficient       = dict["soft_update_coefficient"]
-        self.update_target_every_N_updates = dict["update_target_every_N_updates"]
-        self.dnn_update_counter            = dict["dnn_update_counter"]
-        self.loss_history                  = dict["loss_history"]
+        self.__init__(obs_dim_size=self.obs_dim_size,
+                      act_num_discrete=self.act_num_discrete,
+                      l_r=dict["learning_rate"],
+                      d_r=dict["discount"],
+                      soft_update_coefficient=dict["soft_update_coefficient"],
+                      update_target_every_N_updates=dict["update_target_every_N_updates"])
+        self.dnn_update_counter = dict["dnn_update_counter"]
+        self.loss_history       = dict["loss_history"]
         
     def update(self, buffer : NdArrayBuffer):
         """

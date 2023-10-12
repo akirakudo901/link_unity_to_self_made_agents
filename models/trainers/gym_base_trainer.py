@@ -41,6 +41,7 @@ class GymOffPolicyBaseTrainer(OffPolicyBaseTrainer):
         
         self.obs_shape=self.env.observation_space.shape
         self.act_shape=self.env.action_space.shape
+        self.env_name = env.unwrapped.spec.id
     
         # prints specs about the environment
         observation_size = 1 if (self.obs_shape == ()) else self.obs_shape[0]
@@ -127,33 +128,41 @@ class GymOffPolicyBaseTrainer(OffPolicyBaseTrainer):
             evaluate_N_samples : int,
             initial_exploration_function,
             training_exploration_function,
+            training_exploration_function_name : str,
             save_after_training : bool,
             task_name : str,
+            training_id : int,
             render_evaluation : bool = True
-        ) -> PolicyLearningAlgorithm:
+            )-> PolicyLearningAlgorithm:
         """
         Trains the learning algorithm in the environment with given specifications, returning 
         the trained algorithm.
 
-        :param OffPolicyLearningAlgorithm learning_algorithm: The algorithm which provides policy, 
-        evaluating actions given states per batches.
-        :param int num_training_epochs: The number of steps we proceed to train the algorithm.
-        :param int new_experience_per_epoch: The number of new experience we collect minimum before
-        every update for our algorithm.
-        :param int max_buffer_size: The maximum number of experience to be kept in the buffer.
-        :param int num_initial_experiences: The number of experiences to be collected in the 
-        buffer first before doing any learning.
-        :param int evaluate_every_N_epochs: We evaluate the algorithm at this interval.
+        :param PolicyLearningAlgorithm learning_algorithm: The algorithm to train.
+        :param int num_training_epochs: How many training epochs are executed.
+        :param int new_experience_per_epoch: The number of minimum experience to 
+        produce per epoch. *actual number of newly produced experience might 
+        differ since the smallest increment of the number of experience matches that
+        produced by generate_experience. 
+        :param int max_buffer_size: The maximum number of experience to keep in buffer.
+        :param int num_initial_experiences: The number of experiences added to buffer 
+        before training starts.
+        :param int evaluate_every_N_epochs: How frequently we evaluate the algorithm
+        using self.evaluate.
         :param int evaluate_N_samples: How many samples of cumulative reward trajectory you 
         average for evaluate.
-        :param initial_exploration_function: A function which controls how exploration is 
-        handled at the very beginning, when exploration is generated.
-        :param training_exploration_function: A function which controls how exploration is handled 
-        during training of the algorithm.
-        :param bool save_after_training: Whether to save the policy after training.
-        :param str task_name: The name of the task to log when saving after training.
+        :param initial_exploration_function: The exploration function used when producing
+        the initial experiences.
+        :param training_exploration_function: The exploration function used when producing
+        experiences while training the algorithm.
+        :param str training_exploration_function_name: The training exploration function's name.
+        :param bool save_after_training: Whether to save the resulting algorithm using
+        PolicyLearningAlgorithm.save().
+        :param str task_name: The name of this task.
+        :param int training_id: The training id that specifies the training process.
         :param bool render_evaluation: Whether to render the environment when evaluating.
-        :returns OffPolicyLearningAlgorithm learning_algorithm: The trained algorithm object.
+
+        :return PolicyLearningAlgorithm: The trained algorithm.
         """
         self.render_evaluation = render_evaluation
 
@@ -167,8 +176,10 @@ class GymOffPolicyBaseTrainer(OffPolicyBaseTrainer):
             evaluate_N_samples=evaluate_N_samples,
             initial_exploration_function=initial_exploration_function,
             training_exploration_function=training_exploration_function,
+            training_exploration_function_name=training_exploration_function_name,
             save_after_training=save_after_training, 
-            task_name=task_name
+            task_name=task_name,
+            training_id=training_id
             )
     
     def evaluate(self, 

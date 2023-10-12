@@ -191,9 +191,9 @@ class PolicyLearningAlgorithm(ABC):
         """
         def try_saving_except(call, saving_the___successfully : str, *args, **kwargs):
             try:
-                print(f"Saving the {saving_the___successfully}...", end="")
+                # print(f"Saving the {saving_the___successfully}...", end="")
                 call(*args, **kwargs)
-                print(f"successful.")
+                # print(f"successful.")
             except Exception:
                 print(f"\nSome exception occurred while saving the {saving_the___successfully}...")
                 logging.error(traceback.format_exc())
@@ -205,10 +205,10 @@ class PolicyLearningAlgorithm(ABC):
 
         # save the yamlirized features in this algorithm
         def save_yaml():
-            yaml_dict = self._get_parameter_dict()
+            param_dict = self._get_parameter_dict()
             with open(f"{dir}/{task_name}_{training_id}_Algorithm_Param.yaml",
                     'w') as yaml_file:
-                yaml.dump(yaml_dict, yaml_file)
+                yaml.dump(param_dict, yaml_file)
         
         try_saving_except(save_yaml, saving_the___successfully="algorithm fields")
     
@@ -226,9 +226,9 @@ class PolicyLearningAlgorithm(ABC):
         """
         def try_loading_except(call, loading_the___successfully : str, *args, **kwargs):
             try:
-                print(f"Loading the {loading_the___successfully}...", end="")
+                # print(f"Loading the {loading_the___successfully}...", end="")
                 call(*args, **kwargs)
-                print(f"successful.")
+                # print(f"successful.")
             except Exception:
                 print(f"\nSome exception occurred while loading the {loading_the___successfully}...")
                 logging.error(traceback.format_exc())

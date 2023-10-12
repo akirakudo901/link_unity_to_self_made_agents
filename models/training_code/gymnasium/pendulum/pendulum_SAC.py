@@ -45,7 +45,7 @@ parameters = {
         "pol_eval_batch_size" : 64,
         "pol_imp_batch_size" : 64,
         "update_qnet_every_N_gradient_steps" : 1,
-        "num_training_steps" : 300000,
+        "num_training_steps" : 10000,
         "num_init_exp" : 1000,
         "num_new_exp" : 1,
         "buffer_size" : 10000,
@@ -121,9 +121,11 @@ def train_SAC_on_pendulum(parameter_name : str):
             evaluate_N_samples=3,
             initial_exploration_function=uniform_random_sampling,
             training_exploration_function=no_exploration,
+            training_exploration_function_name="no_exploration",
             save_after_training=param["save_after_training"],
             task_name=TASK_NAME,
-            render_evaluation=True
+            training_id=1,
+            render_evaluation=False
             )
 
         return l_a
