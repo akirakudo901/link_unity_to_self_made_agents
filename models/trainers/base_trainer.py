@@ -126,6 +126,7 @@ class OffPolicyBaseTrainer(ABC):
         :param int training_id: The training id that specifies the training process.
         :return PolicyLearningAlgorithm: The trained algorithm.
         """
+        # first try to resume a previous training if there is one
         if os.path.exists(os.path.join(OffPolicyBaseTrainer.PROGRESS_SAVING_DIR, 
                                        f"{task_name}_{training_id}_folder")):
             try:
@@ -139,6 +140,7 @@ class OffPolicyBaseTrainer(ABC):
                 logging.error(traceback.format_exc())
                 print("Loading a previous progress was unsuccessful...")
 
+        # otherwise train from scratch
         start_time = timer()
         
         try:
@@ -325,6 +327,8 @@ class OffPolicyBaseTrainer(ABC):
                     cumulative_rewards.append(cumulative_reward)
                     print(f"Training loop {i+1}/{num_training_epochs} successfully ended: reward={cumulative_reward}.\n")
 
+                    intermediate_time = timer()
+
                     # also save when evaluating
                     self._save_training_progress(
                         task_name=task_name,
@@ -338,7 +342,7 @@ class OffPolicyBaseTrainer(ABC):
                         training_exploration_function_name=training_exploration_function_name,
                         save_after_training=save_after_training,
                         training_epochs_so_far=i,
-                        time_so_far=time_so_far,
+                        time_so_far=time_so_far + (intermediate_time - start_time),
                         cumulative_rewards=cumulative_rewards,
                         environment_name=self.env_name
                     )
@@ -362,15 +366,17 @@ class OffPolicyBaseTrainer(ABC):
 
             # Show the training graph
             try:
+                new_dir_path = os.path.join("images", f"{task_name}_{training_id}_folder")
+                if not os.path.exists(new_dir_path): os.mkdir(new_dir_path)
                 plt.clf()
-                plt.title(f"{task_name} Cumulative reward")
+                plt.title(f"{task_name} ID={training_id} Cumulative reward")
                 plt.xlabel("Epochs")
                 plt.ylabel("Cumulative Reward")
                 plt.plot(range(0, len(cumulative_rewards)*evaluate_every_N_epochs, evaluate_every_N_epochs), cumulative_rewards)
-                plt.savefig(os.path.join("images", task_name, f"{task_name}_cumulative_reward_fig.png"))
+                plt.savefig(os.path.join(new_dir_path, f"{task_name}_{training_id}_cumulative_reward_fig.png"))
                 plt.show()
                 learning_algorithm.show_loss_history(task_name=task_name, save_figure=True, 
-                                                     save_dir=os.path.join("images", task_name))
+                                                     save_dir=new_dir_path)
             except Exception:
                 logging.error(traceback.format_exc())
     
@@ -472,13 +478,6 @@ class OffPolicyBaseTrainer(ABC):
         new_dir_path = os.path.join(OffPolicyBaseTrainer.PROGRESS_SAVING_DIR,
                                     f"{task_name}_{training_id}_folder")
         if not os.path.exists(new_dir_path): os.mkdir(new_dir_path)
-        # save policy learning algorithm
-        learning_algorithm.save_training_progress(dir=new_dir_path, 
-                                                  task_name=task_name, 
-                                                  training_id=training_id)
-        # save buffer
-        buffer.save(save_dir=new_dir_path, 
-                    file_name=f"{task_name}_{training_id}_buffer")
         # save learning state, comprising of:
         param_dict = {
             # 1/Elements given as parameters to train:
@@ -502,6 +501,14 @@ class OffPolicyBaseTrainer(ABC):
         with open(os.path.join(new_dir_path, f"{task_name}_{training_id}_trainer_parameters.yaml"),
                                'w') as file:
             yaml.dump(param_dict, file)
+
+        # save policy learning algorithm
+        learning_algorithm.save_training_progress(dir=new_dir_path, 
+                                                  task_name=task_name, 
+                                                  training_id=training_id)
+        # save buffer
+        buffer.save(save_dir=new_dir_path, 
+                    file_name=f"{task_name}_{training_id}_buffer")
     
     def _load_training_progress(
             self,
@@ -523,13 +530,6 @@ class OffPolicyBaseTrainer(ABC):
         """
         new_dir_path = os.path.join(OffPolicyBaseTrainer.PROGRESS_SAVING_DIR,
                             f"{task_name}_{training_id}_folder")
-        # load the policy learning algorithm
-        learning_algorithm.save_training_progress(dir=new_dir_path, 
-                                                  task_name=task_name, 
-                                                  training_id=training_id)
-        # load buffer
-        buffer = NdArrayBuffer(max_size=1, obs_shape=(1, ), act_shape=(1, ))
-        buffer.load(path=os.path.join(new_dir_path, f"{task_name}_{training_id}_buffer"))
         # load the learning state as a dictionary (to be directly returned?)
         with open(os.path.join(new_dir_path, f"{task_name}_{training_id}_trainer_parameters.yaml"),
                                'r') as file:
@@ -537,4 +537,13 @@ class OffPolicyBaseTrainer(ABC):
             # if you do import codes from the outside, beware of YAML's 
             # building functionality that might be harmful.
             param_dict = yaml.load(file, Loader=yaml.Loader) 
+
+        # load the policy learning algorithm
+        learning_algorithm.load_training_progress(dir=new_dir_path, 
+                                                  task_name=task_name, 
+                                                  training_id=training_id)
+        
+        # load buffer
+        buffer = NdArrayBuffer(max_size=1, obs_shape=(1, ), act_shape=(1, ))
+        buffer.load(path=os.path.join(new_dir_path, f"{task_name}_{training_id}_buffer"))
         return (learning_algorithm, buffer, param_dict)

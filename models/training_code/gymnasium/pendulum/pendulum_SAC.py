@@ -10,7 +10,8 @@ import gymnasium
 import numpy as np
 import torch
 
-from models.policy_learning_algorithms.soft_actor_critic import SoftActorCritic
+from models.policy_learning_algorithms.policy_learning_algorithm import no_exploration
+from models.policy_learning_algorithms.soft_actor_critic import SoftActorCritic, uniform_random_sampling_wrapper
 from models.trainers.gym_base_trainer import GymOffPolicyBaseTrainer
 from models.trainers.utils.gym_observation_scaling_wrapper import GymObservationScaling
 
@@ -21,21 +22,21 @@ env = GymObservationScaling(env, obs_max=1.0, obs_min=-1.0)
 trainer = GymOffPolicyBaseTrainer(env)
 
 parameters = {
-    "online_example" : { #https://github.com/zhihanyang2022/pytorch-sac/blob/main/params_pool.py
-        "q_net_learning_rate"  : 1e-3,
-        "policy_learning_rate" : 1e-3,
-        "discount" : 0.99,
-        "temperature" : 0.1,
-        "qnet_update_smoothing_coefficient" : 0.005,
-        "pol_eval_batch_size" : 64,
-        "pol_imp_batch_size" : 64,
-        "update_qnet_every_N_gradient_steps" : 1,
-        "num_training_steps" : 10000,
-        "num_init_exp" : 1000,
-        "num_new_exp" : 1,
-        "buffer_size" : 10000,
-        "save_after_training" : True
-    },
+    # "online_example" : { #https://github.com/zhihanyang2022/pytorch-sac/blob/main/params_pool.py
+    #     "q_net_learning_rate"  : 1e-3,
+    #     "policy_learning_rate" : 1e-3,
+    #     "discount" : 0.99,
+    #     "temperature" : 0.1,
+    #     "qnet_update_smoothing_coefficient" : 0.005,
+    #     "pol_eval_batch_size" : 64,
+    #     "pol_imp_batch_size" : 64,
+    #     "update_qnet_every_N_gradient_steps" : 1,
+    #     "num_training_steps" : 10000,
+    #     "num_init_exp" : 1000,
+    #     "num_new_exp" : 1,
+    #     "buffer_size" : 10000,
+    #     "save_after_training" : True
+    # },
     "play_around" : {
         "q_net_learning_rate"  : 1e-3,
         "policy_learning_rate" : 1e-3,
@@ -45,90 +46,61 @@ parameters = {
         "pol_eval_batch_size" : 64,
         "pol_imp_batch_size" : 64,
         "update_qnet_every_N_gradient_steps" : 1,
-        "num_training_steps" : 10000,
+        "num_training_steps" : 1000,
         "num_init_exp" : 1000,
         "num_new_exp" : 1,
-        "buffer_size" : 10000,
-        "save_after_training" : True
-    },
-    # short training to play around
-    "for_testing" : {
-        "q_net_learning_rate"  : 1e-3,
-        "policy_learning_rate" : 1e-3,
-        "discount" : 0.99,
-        "temperature" : 0.08,
-        "qnet_update_smoothing_coefficient" : 0.005,
-        "pol_eval_batch_size" : 64,
-        "pol_imp_batch_size" : 64,
-        "update_qnet_every_N_gradient_steps" : 1,
-        "num_training_steps" : 20,
-        "num_init_exp" : 10,
-        "num_new_exp" : 1,
-        "buffer_size" : 10000,
-        "save_after_training" : False
+        "buffer_size" : int(1e6),
+        "save_after_training" : False,
+        "training_id" : 3
     }
 }
 
 
 def train_SAC_on_pendulum(parameter_name : str):
-      
-        def uniform_random_sampling(actions, env):
-            # initially sample actions from a uniform random distribution of the right
-            # range, in order to extract good reward signals
-            action_zero_to_one = torch.rand(size=(learning_algorithm.act_dim_size,)).cpu()
-            action_minus_one_to_one = action_zero_to_one * 2.0 - 1.0
-            adjusted_actions = (action_minus_one_to_one * 
-                                learning_algorithm.policy.action_multiplier.detach().cpu() + 
-                                learning_algorithm.policy.action_avgs.detach().cpu())
-            return adjusted_actions.numpy()
 
-        def no_exploration(actions, env):
-            # since exploration is inherent in SAC, we don't need epsilon to do anything
-            if type(actions) == type(torch.tensor([0])):
-                return actions.numpy()
-            elif type(actions) == type(np.array([0])):
-                return actions
-            else:
-                raise Exception("Value passed as action to no_exploration was of type ", type(actions), 
-                                "but should be either a torch.tensor or np.ndarray to successfully work.") 
+    print(f"Training: {parameter_name}")
 
-        print(f"Training: {parameter_name}")
+    param = parameters[parameter_name]
 
-        param = parameters[parameter_name]
+    learning_algorithm = SoftActorCritic(
+        q_net_learning_rate=param["q_net_learning_rate"], 
+        policy_learning_rate=param["policy_learning_rate"], 
+        discount=param["discount"], 
+        temperature=param["temperature"],
+        qnet_update_smoothing_coefficient=param["qnet_update_smoothing_coefficient"],
+        pol_eval_batch_size=param["pol_eval_batch_size"],
+        pol_imp_batch_size=param["pol_imp_batch_size"],
+        update_qnet_every_N_gradient_steps=param["update_qnet_every_N_gradient_steps"],
+        env=env
+        # leave the optimizer as the default = Adam
+        )
+    
+    TASK_NAME = learning_algorithm.ALGORITHM_NAME + "_" + env.spec.id
 
-        learning_algorithm = SoftActorCritic(
-            q_net_learning_rate=param["q_net_learning_rate"], 
-            policy_learning_rate=param["policy_learning_rate"], 
-            discount=param["discount"], 
-            temperature=param["temperature"],
-            qnet_update_smoothing_coefficient=param["qnet_update_smoothing_coefficient"],
-            pol_eval_batch_size=param["pol_eval_batch_size"],
-            pol_imp_batch_size=param["pol_imp_batch_size"],
-            update_qnet_every_N_gradient_steps=param["update_qnet_every_N_gradient_steps"],
-            env=env
-            # leave the optimizer as the default = Adam
-            )
-        
-        TASK_NAME = learning_algorithm.ALGORITHM_NAME + "_" + env.spec.id
+    l_a = trainer.train(
+        learning_algorithm=learning_algorithm,
+        num_training_epochs=param["num_training_steps"], 
+        new_experience_per_epoch=param["num_new_exp"],
+        max_buffer_size=param["buffer_size"],
+        num_initial_experiences=param["num_init_exp"],
+        evaluate_every_N_epochs=param["num_training_steps"] // 20,
+        evaluate_N_samples=3,
+        initial_exploration_function=uniform_random_sampling_wrapper(learning_algorithm),
+        training_exploration_function=no_exploration,
+        training_exploration_function_name="no_exploration",
+        save_after_training=param["save_after_training"],
+        task_name=TASK_NAME + parameter_name + str(param["temperature"]),
+        training_id=param["training_id"],
+        render_evaluation=False
+        )
 
-        l_a = trainer.train(
-            learning_algorithm=learning_algorithm,
-            num_training_epochs=param["num_training_steps"], 
-            new_experience_per_epoch=param["num_new_exp"],
-            max_buffer_size=param["buffer_size"],
-            num_initial_experiences=param["num_init_exp"],
-            evaluate_every_N_epochs=param["num_training_steps"] // 20,
-            evaluate_N_samples=3,
-            initial_exploration_function=uniform_random_sampling,
-            training_exploration_function=no_exploration,
-            training_exploration_function_name="no_exploration",
-            save_after_training=param["save_after_training"],
-            task_name=TASK_NAME,
-            training_id=1,
-            render_evaluation=False
-            )
+    return l_a
 
-        return l_a
-
+# temps = [r*0.05 for r in [3,5,8,2]]
+# print(temps)
+# for temp in temps:
+#     print(f"Working on {temp}!")
+#     parameters["play_around"]["temperature"] = temp
+#     train_SAC_on_pendulum(parameter_name="play_around")
 
 train_SAC_on_pendulum(parameter_name="play_around")

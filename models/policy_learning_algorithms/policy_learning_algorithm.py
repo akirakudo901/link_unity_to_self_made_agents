@@ -132,6 +132,7 @@ class PolicyLearningAlgorithm(ABC):
     @abstractmethod
     def _load_parameter_dict(self, dict : Dict):
         """
+        *CALLING THIS FUNCTION WILL REINITIALIZE SELF!!
         Loads the dictionary containing relevant parameters for 
         this algorithm while loading previous progress.
 
@@ -232,11 +233,7 @@ class PolicyLearningAlgorithm(ABC):
             except Exception:
                 print(f"\nSome exception occurred while loading the {loading_the___successfully}...")
                 logging.error(traceback.format_exc())
-        
-        # load the algorithm to track progress
-        try_loading_except(self.load, loading_the___successfully="algorithm parameters", 
-                          path=f"{dir}/{task_name}_{training_id}")
-
+        # !! BELOW, ORDER MATTERS AS CALLING _LOAD_PARAMETER_DICT REINITIALIZES THE ALGORITHM!
         # load the yamlirized features in this algorithm
         def load_yaml():
             with open(f"{dir}/{task_name}_{training_id}_Algorithm_Param.yaml",
@@ -248,6 +245,10 @@ class PolicyLearningAlgorithm(ABC):
                 self._load_parameter_dict(dict=yaml_dict)
         
         try_loading_except(load_yaml, loading_the___successfully="algorithm fields")
+        
+        # load the algorithm to track progress
+        try_loading_except(self.load, loading_the___successfully="algorithm parameters", 
+                          path=f"{dir}/{task_name}_{training_id}")
     
     def delete_training_progress(self, dir : str, task_name : str, training_id : int):
         """
@@ -397,3 +398,26 @@ class PolicyLearningAlgorithm(ABC):
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         print('Using device:', device)
         return device
+    
+# OTHER USEFUL FUNCTIONS
+
+# EXPLORATION FUNCTIONS
+def no_exploration(actions : Union[np.ndarray, torch.tensor], env):
+    """
+    An exploration function that takes an action and return it while
+    attempting to convert it into a np.ndarray.
+    To be passed to trainers as arguments.
+
+    :param np.ndarray or torch.tensor actions: The action to be passed.
+    :param env: An environment to be passed - is a placeholder.
+    :raises Exception: Raises an exception if actions is of neither type specified above.
+    :return np.ndarray actions: Returns an np.ndarray version of the action passed.
+    """
+    # since exploration is inherent in SAC, we don't need epsilon to do anything
+    if type(actions) == type(torch.tensor([0])):
+        return actions.numpy()
+    elif type(actions) == type(np.array([0])):
+        return actions
+    else:
+        raise Exception("Value passed as action to no_exploration was of type ", type(actions), 
+                        "but should be either a torch.tensor or np.ndarray to successfully work.") 

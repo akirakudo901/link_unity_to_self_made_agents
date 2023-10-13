@@ -39,7 +39,7 @@ class SoftActorCritic(PolicyLearningAlgorithm):
             :param int action_size: The size of the action vectors.
             """
             super(SoftActorCritic.QNet, self).__init__()
-            fc_out = 256
+            fc_out = 64#256
             self.fc1 = nn.Linear(observation_size + action_size, fc_out)
             self.fc2 = nn.Linear(fc_out, fc_out)
 
@@ -109,7 +109,7 @@ class SoftActorCritic(PolicyLearningAlgorithm):
             self.action_avgs       = torch.tensor([(range[1] + range[0]) / 2 for range in action_ranges]).to(SoftActorCritic.NUMBER_DTYPE)
             self.action_multiplier = torch.tensor([(range[1] - range[0]) / 2 for range in action_ranges]).to(SoftActorCritic.NUMBER_DTYPE)
 
-            fc_out = 256
+            fc_out = 64#256
             self.fc1 = nn.Linear(observation_size, fc_out)
             self.fc2 = nn.Linear(fc_out, fc_out)
             
@@ -170,18 +170,18 @@ class SoftActorCritic(PolicyLearningAlgorithm):
             stack_out = self.linear_relu_stack(obs)            
             myus = self.mean_layer(stack_out)
 
-            # ONE WAY TO DO IT (FROM SPINNING UP?)
-            LOG_STD_MIN, LOG_STD_MAX = -5, 2
-            log_std = torch.tanh(self.sd_layer(stack_out))
-            log_std = LOG_STD_MIN + 0.5 * (LOG_STD_MAX - LOG_STD_MIN) * (log_std + 1)
-            sigmas = torch.exp(log_std)
+            # # ONE WAY TO DO IT (FROM SPINNING UP?)
+            # LOG_STD_MIN, LOG_STD_MAX = -5, 2
+            # log_std = torch.tanh(self.sd_layer(stack_out))
+            # log_std = LOG_STD_MIN + 0.5 * (LOG_STD_MAX - LOG_STD_MIN) * (log_std + 1)
+            # sigmas = torch.exp(log_std)
             # ONE WAY TO DO IT END
 
             # ANOTHER WAY TO DO IT (FROM https://github.com/zhihanyang2022/pytorch-sac/blob/main/params_pool.py)
-            # LOG_STD_MAX = 2
-            # LOG_STD_MIN = -20
+            LOG_STD_MAX = 2
+            LOG_STD_MIN = -20
 
-            # sigmas = torch.exp(torch.clamp(self.sd_layer(stack_out), min=LOG_STD_MIN, max=LOG_STD_MAX))
+            sigmas = torch.exp(torch.clamp(self.sd_layer(stack_out), min=LOG_STD_MIN, max=LOG_STD_MAX))
             #END EXPERIMENTAL
                         
             # if deterministic (while in inference), return the mean of distributions
@@ -337,11 +337,11 @@ class SoftActorCritic(PolicyLearningAlgorithm):
                 batch_start = i*self.pol_eval_batch_size
                 batch_end = min((i+1)*self.pol_eval_batch_size, experiences.size())
 
-                batch_obs = observations[batch_start : batch_end].detach()
-                batch_actions = actions[batch_start : batch_end].detach()
-                batch_rewards = rewards[batch_start : batch_end].detach()
-                batch_dones = dones[batch_start : batch_end].detach()
-                batch_nextobs = next_observations[batch_start : batch_end].detach()
+                batch_obs     = observations[batch_start : batch_end]
+                batch_actions = actions[batch_start : batch_end]
+                batch_rewards = rewards[batch_start : batch_end]
+                batch_dones   = dones[batch_start : batch_end]
+                batch_nextobs = next_observations[batch_start : batch_end]
         
                 # batch_action_samples' shape is [batch_size, POL_EVAL_FRESH_ACTION_SAMPLE_SIZE, action_size]
                 batch_action_samples = fresh_action_samples[batch_start : batch_end]  
@@ -388,10 +388,11 @@ class SoftActorCritic(PolicyLearningAlgorithm):
         # distance between this q-value and the current policy
 
         new_seed = ((seed - 1)*seed) % (seed + 1) if seed is not None else None
-        observations, actions, rewards, dones, next_observations = SoftActorCritic._sample_experiences(
-            experiences=experiences, num_samples=POLICY_IMP_NUM_EPOCHS * self.pol_imp_batch_size, 
-            device=self.device, seed=new_seed
-            )
+        # TODO WE MIGHT BE ABLE TO REUSE THE PREVIOUS EXPERIENCES?
+        # observations, actions, rewards, dones, next_observations = SoftActorCritic._sample_experiences(
+        #     experiences=experiences, num_samples=POLICY_IMP_NUM_EPOCHS * self.pol_imp_batch_size, 
+        #     device=self.device, seed=new_seed
+        #     )
         
         # in order to estimate the gradient, we again sample some actions at this point in time.
         # TODO COULD WE USE ACTIONS SAMPLED BEFORE WHICH WERE USED FOR Q-NETWORK UPDATE? NOT SURE
@@ -404,7 +405,7 @@ class SoftActorCritic(PolicyLearningAlgorithm):
                 batch_start = i*self.pol_imp_batch_size
                 batch_end = min((i+1)*self.pol_imp_batch_size, experiences.size())
 
-                batch_obs = observations[batch_start : batch_end].detach()
+                batch_obs = observations[batch_start : batch_end]
                 
                 # batch_action_samples' shape is [batch_size, POL_IMP_FRESH_ACTION_SAMPLE_SIZE, action_size]
                 batch_action_samples = fresh_action_samples2[batch_start : batch_end]
@@ -643,10 +644,10 @@ class SoftActorCritic(PolicyLearningAlgorithm):
                       obs_dim_size=self.obs_dim_size,
                       act_dim_size=self.act_dim_size,
                       act_ranges=self.act_ranges)
-        self.qnet_update_counter                = dict["qnet_update_counter"]
-        self.qnet1_loss_history                 = dict["qnet1_loss_history"]
-        self.qnet2_loss_history                 = dict["qnet2_loss_history"]
-        self.policy_loss_history                = dict["policy_loss_history"]
+        self.qnet_update_counter = dict["qnet_update_counter"]
+        self.qnet1_loss_history  = dict["qnet1_loss_history"]
+        self.qnet2_loss_history  = dict["qnet2_loss_history"]
+        self.policy_loss_history = dict["policy_loss_history"]
 
     def _delete_saved_algorithms(self, dir : str, task_name : str, training_id : int):
         save_dir = PolicyLearningAlgorithm.get_saving_directory_name(
@@ -689,3 +690,27 @@ class SoftActorCritic(PolicyLearningAlgorithm):
                                                              task_name=task_name, 
                                                              save_figure=save_figure, 
                                                              save_dir=save_dir)
+
+# OTHER USEFUL FUNCTIONS
+
+# EXPLORATION FUNCTIONS
+def uniform_random_sampling_wrapper(learning_algorithm : SoftActorCritic):
+    """
+    Returns an exploration function which uniform randomly samples
+    actions from the possible environments given an SAC learning algorithm. 
+    To be passed as argument to trainers.
+    :param SoftActorCritic learning_algorithm: The learning algorithm, passed \
+    to get data on act_dim_size, action_multipler and action_avgs.
+    :return uniform_random_sampling: The function that returns the actions.
+    """
+    def uniform_random_sampling(actions, env):
+        # initially sample actions from a uniform random distribution of the right
+        # range, in order to extract good reward signals
+        action_zero_to_one = torch.rand(size=(learning_algorithm.act_dim_size,)).cpu()
+        action_minus_one_to_one = action_zero_to_one * 2.0 - 1.0
+        adjusted_actions = (action_minus_one_to_one * 
+                            learning_algorithm.policy.action_multiplier.detach().cpu() + 
+                            learning_algorithm.policy.action_avgs.detach().cpu())
+        return adjusted_actions.numpy()
+    
+    return uniform_random_sampling

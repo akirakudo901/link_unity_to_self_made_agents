@@ -17,8 +17,10 @@ from models.training_code.gymnasium.pendulum import pendulum_SAC
 #                                     temperature=2, qnet_update_smoothing_coefficient=0.5,
 #                                     pol_eval_batch_size=54, pol_imp_batch_size=54,
 #                                     update_qnet_every_N_gradient_steps=1, env=env)
-#     sac_algorithm.load(loaded_sac_name=f"trained_algorithms/SAC/{name}")
+#     sac_algorithm.load(path=f"trained_algorithms/SAC/{name}")
 
-#     trainer.render_evaluation = False
+#     trainer.render_evaluation = True
 #     reward = trainer.evaluate(sac_algorithm, 10)
 #     print(f"Reward is: {reward}!")
+
+# test_Pendulum_on("SAC_Pendulum-v1play_around0.35000000000000003_2023_10_12_02_02")

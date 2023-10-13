@@ -307,3 +307,10 @@ import torch
 #         print("Some exception occurred while saving algorithm parameters...")
 
 # try_saving_except(save, "abc", second="Second")
+from models.policy_learning_algorithms.soft_actor_critic import uniform_random_sampling_wrapper, SoftActorCritic
+sac1 = SoftActorCritic(1.0, 1.0, 1.0, 1.0, 1.0, 1, 1, 1, 
+                       2, 3, ((0, 1),(2, 3),(-1, 2)))
+
+urs = uniform_random_sampling_wrapper(learning_algorithm=sac1)
+returned = urs(actions=None, env=None)
+print(returned)

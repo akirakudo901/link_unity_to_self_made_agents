@@ -28,7 +28,7 @@ class GymOffPolicyBaseTrainer(OffPolicyBaseTrainer):
         Creates an on policy base trainer with a given gym environment and a 
         learning algorithm which holds a policy.
         Enables the generation of the experience for a single time step and return it
-        to be used for on-policy learning.
+        to be used for off-policy learning.
 
         :param gymnasium.Env env: The gymnasium environment used.
         """
