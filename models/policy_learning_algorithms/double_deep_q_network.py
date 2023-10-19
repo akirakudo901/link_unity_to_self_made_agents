@@ -4,7 +4,7 @@ A DDQN algorithm to be used as learning algorithm.
 
 import os
 
-from typing import Dict
+from typing import Dict, Tuple
 import numpy as np
 import torch
 import torch.nn as nn
@@ -18,17 +18,30 @@ class DoubleDeepQNetwork(PolicyLearningAlgorithm):
 
     class DNN(nn.Module):
 
-        def __init__(self, input_size, output_size):
+        def __init__(self, 
+                     input_size : int, 
+                     output_size : int, 
+                     dqn_layer_sizes : Tuple[int] = None):
             # Initializes a new DNN.
             super(DoubleDeepQNetwork.DNN, self).__init__()
+
+            if dqn_layer_sizes != None:
+                dqn_layer_sizes = [input_size] + list(dqn_layer_sizes) + [output_size]
+                layers = []
+                for i, sz in enumerate(dqn_layer_sizes[:-1]):
+                    layers.append(nn.Linear(sz, dqn_layer_sizes[i+1]))
+                    layers.append(nn.ReLU())
+                
+                self.fc_relu_stack = nn.Sequential(*layers)
             
-            self.fc_relu_stack = nn.Sequential(
-                nn.Linear(input_size, 8),
-                nn.Sigmoid(),
-                nn.Linear(8, 16),
-                nn.Sigmoid(),
-                nn.Linear(16, output_size),
-            )
+            else:
+                self.fc_relu_stack = nn.Sequential(
+                    nn.Linear(input_size, 8),
+                    nn.ReLU(),
+                    nn.Linear(8, 16),
+                    nn.ReLU(),
+                    nn.Linear(16, output_size),
+                )
 
         def forward(self, x):
             x = self.fc_relu_stack(x)
@@ -40,6 +53,7 @@ class DoubleDeepQNetwork(PolicyLearningAlgorithm):
                  l_r : float = 0.1, d_r : float = 0.95,
                  soft_update_coefficient : float = 0.005,
                  update_target_every_N_updates : int = 1,
+                 dqn_layer_sizes : Tuple[int] = None,
                  env = None):
         """
         Initializes a DDQN algorithm. 
@@ -55,6 +69,8 @@ class DoubleDeepQNetwork(PolicyLearningAlgorithm):
         update the target network's weights utilizing that of the policy network. Defaults to 0.005.
         :param int update_target_every_N_updates: Designates once every how many steps the
         target network's weights are updated using that of the policy network. Defaults to 1.
+        :param Tuple[int] dqn_layer_sizes: The number of neurons in each layer in the DQN modules.
+        If not given, defaults to [8, 16, 16].
         :param env: The environment on which we will train this algorithm. Optionally passed, so that
         features about the environment are automatically extracted.
         * IF GIVEN, INPUTS SUCH AS obs_dim_size AND act_num_discrete ARE IGNORED!
@@ -73,11 +89,13 @@ class DoubleDeepQNetwork(PolicyLearningAlgorithm):
         
         self.dnn_policy = DoubleDeepQNetwork.DNN(
             input_size=self.obs_dim_size, 
-            output_size=self.act_num_discrete
+            output_size=self.act_num_discrete,
+            dqn_layer_sizes=dqn_layer_sizes
             ).to(self.device)
         self.dnn_target = DoubleDeepQNetwork.DNN(
             input_size=self.obs_dim_size, 
-            output_size=self.act_num_discrete
+            output_size=self.act_num_discrete,
+            dqn_layer_sizes=dqn_layer_sizes
             ).to(self.device)
 
         self.optim = optim.Adam(self.dnn_policy.parameters(), lr=self.learning_rate)
@@ -87,7 +105,7 @@ class DoubleDeepQNetwork(PolicyLearningAlgorithm):
         
     def get_optimal_action(self, state):
         state_tensor = super().get_optimal_action(state)      
-        state_tensor = state_tensor.to(self.device).unsqueeze(0)
+        state_tensor = state_tensor.to(self.device)
         prediction = self.dnn_policy(state_tensor).cpu()
         return torch.argmax(prediction).numpy()
     
@@ -152,7 +170,7 @@ class DoubleDeepQNetwork(PolicyLearningAlgorithm):
         next_states = torch.from_numpy(np_next_obs)
 
         # calculate the actual Q values
-        actual_q = (rewards + 
+        actual_q = (rewards +
                      (1 - dones) *
                      self.discount * 
                      torch.max(self.dnn_target(next_states).detach(), dim=1).values)

@@ -23,6 +23,7 @@ parameters = {
           "init_eps" : 1.0,
           "min_eps" : 0.05,
           "eps_decay" : 0.9996,
+          "auto_adjust" : False,
           "l_r" : 1e-2, 
           "d_r" : 0.95, 
           "soft_update_coefficient" : 5e-4,
@@ -31,38 +32,26 @@ parameters = {
           "num_init_exp" : 1000,
           "num_new_exp" : 1,
           "buffer_size" : 10000,
-          "save_after_training" : True
+          "save_after_training" : True,
+          "training_id" : 101,
           },
       # below is inspired from https://github.com/lsimmons2/double-dqn-cartpole-solution/blob/master/double_dqn.py
       "trial" : { 
-          "init_eps" : 1.0,
-          "min_eps" : 0.05,
-          "eps_decay" : 0.9999,
-          "l_r" : 1e-2, 
-          "d_r" : 0.95, 
-          "soft_update_coefficient" : 5e-4,
+          "init_eps" : 0.5,
+          "min_eps" : 0.01,
+          "eps_decay" : 0.99,
+          "auto_adjust" : False,
+          "l_r" : 1e-3,
+          "d_r" : 0.99, 
+          "soft_update_coefficient" : 0.1,
           "update_target_every_N_updates" : 1,
-          "num_training_steps" : 25000,
-          "num_init_exp" : 1000,
+          "num_training_steps" : 50000,
+          "num_init_exp" : 500,
           "num_new_exp" : 1,
-          "buffer_size" : 10000,
-          "save_after_training" : True
-           },
-      # short training to see that code executes correctly
-      "for_testing" : {
-          "init_eps" : 1.0, 
-          "min_eps" : 0.05, 
-          "eps_decay" : 0.9996,
-          "l_r" : 1e-2, 
-          "d_r" : 0.95, 
-          "soft_update_coefficient" : 5e-4,
-          "update_target_every_N_updates" : 1,
-          "num_training_steps" : 20,
-          "num_init_exp" : 10,
-          "num_new_exp" : 1,
-          "buffer_size" : 10000,
-          "save_after_training" : False
-      }
+          "buffer_size" : 100000,
+          "save_after_training" : False,
+          "training_id" : 102,
+           }
 }
 
 # learning_rates = [5e-1, 1e-1, 5e-2, 1e-2, 5e-3, 1e-3, 5e-4, 1e-4, 5e-5, 1e-5] # all
@@ -71,10 +60,13 @@ parameters = {
 
 
 class EpsilonAdjustment:
-      def __init__(self, init_eps, min_eps, eps_decay):
+      def __init__(self, init_eps, min_eps, eps_decay, auto_adjust=False):
             self.eps = init_eps
             self.min_eps = min_eps
             self.eps_decay = eps_decay
+
+            if type(auto_adjust) == type(0):
+                 self.eps_decay = (min_eps / init_eps)**(1 / (auto_adjust * 0.8))
 
             self.eps_history = [init_eps]
       
@@ -101,7 +93,7 @@ def uniform_random_sampling(actions, env):
 
 def epsilon_exploration(actions, env, epsilon_adjustment):
       threshold = random.random()
-      a = np.argmax(actions) if (threshold > epsilon_adjustment.eps) else uniform_random_sampling(actions, env)
+      a = actions if (threshold > epsilon_adjustment.eps) else uniform_random_sampling(actions, env)
       epsilon_adjustment.adjust_per_loop()
       return a
 
@@ -117,12 +109,16 @@ def train_DDQN_on_cartPole(parameter_name : str):
             d_r=param["d_r"],
             soft_update_coefficient=param["soft_update_coefficient"],
             update_target_every_N_updates=param["update_target_every_N_updates"],
+            dqn_layer_sizes=(64, 64),
             env=env
             )
 
-      eps_adjust = EpsilonAdjustment(init_eps  = param["init_eps"],
-                                     min_eps   = param["min_eps"], 
-                                     eps_decay = param["eps_decay"])
+      eps_adjust = EpsilonAdjustment(
+           init_eps    = param["init_eps"],
+           min_eps     = param["min_eps"], 
+           eps_decay   = param["eps_decay"],
+           auto_adjust = param["num_training_steps"]
+           )
 
       def eps_explore_fn(actions, env):
             return epsilon_exploration(actions, env, eps_adjust)
@@ -137,12 +133,24 @@ def train_DDQN_on_cartPole(parameter_name : str):
             evaluate_N_samples=10,
             initial_exploration_function=uniform_random_sampling,
             training_exploration_function=eps_explore_fn,
+            training_exploration_function_name="eps_explore_fn",
             save_after_training=param["save_after_training"],
             task_name=TASK_NAME + f"_{param['l_r']}",
-            render_evaluation=True
+            training_id=param["training_id"],
+            render_evaluation=False
             )
 
       eps_adjust.show_epsilon_history()
+
+      # check whether the training was successful
+      # defined as getting an average of over 195.0 rewards over 100 trials
+      # here: [https://github.com/openai/gym/wiki/CartPole-v0]
+      avg_reward = trainer.evaluate(learning_algorithm=l_a, num_samples=100)
+      if avg_reward >= 195.0: 
+           print(f"Cartpole-v1 solved; average reward over 100 trials: {avg_reward}!")
+      else:
+           print(f"Cartpole-v1 not solved... average reward over 100 trials: {avg_reward}!")
+
       return l_a
 
 

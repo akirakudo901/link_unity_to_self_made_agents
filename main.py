@@ -1,8 +1,8 @@
 # from models.training_code.unity.walker import walker_sac_training
 # from models.training_code.gymnasium.bipedal_walker import bipedal_walker_SAC
-from models.training_code.gymnasium.pendulum import pendulum_SAC
+# from models.training_code.gymnasium.pendulum import pendulum_SAC
 # from models.training_code.gymnasium.mountain_car_continuous import mountain_car_continuous_SAC
-# from models.training_code.gymnasium.cart_pole import cart_pole_DDQN
+from models.training_code.gymnasium.cart_pole import cart_pole_DDQN
 
 # import gymnasium
 
@@ -23,4 +23,4 @@ from models.training_code.gymnasium.pendulum import pendulum_SAC
 #     reward = trainer.evaluate(sac_algorithm, 10)
 #     print(f"Reward is: {reward}!")
 
-# test_Pendulum_on("SAC_Pendulum-v1play_around0.35000000000000003_2023_10_12_02_02")
+# # test_Pendulum_on("SAC_Pendulum-v1play_around0.35000000000000003_2023_10_12_02_02")

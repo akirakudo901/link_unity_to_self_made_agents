@@ -218,6 +218,88 @@ from models.policy_learning_algorithms.soft_actor_critic import SoftActorCritic
 # result = bf2.sample_random_experiences(1)
 # print(f"from bf2: {result}")
 
-t1 = (1, 2)
-t2 = (3, 4)
-print(t1 == t2)
+# from models.trainers.utils.buffer import NdArrayBuffer
+
+# bf1 = NdArrayBuffer(max_size=10, obs_shape=(1,), act_shape=(1,))
+# for i in range(100):
+#     bf1.append_experience(obs=np.array([i,]), act=np.array([100-i, ]), 
+#                           rew=i%2, don=i%2==0, next_obs=np.array([i+1, ]))
+
+# obs, act, rew, don, next_obs = bf1.sample_random_experiences(num_samples=10, seed=None)
+# print(f"obs: {np.squeeze(obs)}")
+# print(f"act: {np.squeeze(act)}")
+# print(f"rew: {np.squeeze(rew)}")
+# print(f"don: {np.squeeze(don)}")
+# print(f"next_obs: {np.squeeze(next_obs)}")
+# print(f"Size of bf1: {bf1.size()}")
+# print("\n")
+
+# obs, act, rew, don, next_obs = bf1.sample_random_experiences(num_samples=10, seed=None)
+# print(f"obs: {np.squeeze(obs)}")
+# print(f"act: {np.squeeze(act)}")
+# print(f"rew: {np.squeeze(rew)}")
+# print(f"don: {np.squeeze(don)}")
+# print(f"next_obs: {np.squeeze(next_obs)}")
+# print(f"Size of bf1: {bf1.size()}")
+# print("\n")
+
+# obs, act, rew, don, next_obs = bf1.sample_random_experiences(num_samples=10, seed=None)
+# print(f"obs: {np.squeeze(obs)}")
+# print(f"act: {np.squeeze(act)}")
+# print(f"rew: {np.squeeze(rew)}")
+# print(f"don: {np.squeeze(don)}")
+# print(f"next_obs: {np.squeeze(next_obs)}")
+# print(f"Size of bf1: {bf1.size()}")
+# print("\n")
+
+# import torch.nn as nn
+
+# class Md(nn.Module):
+    
+#     def __init__(self, layers):
+#         super(Md, self).__init__()
+        
+#         # it = iter(layers)
+#         # previous = next(it)
+
+#         # layers = []
+
+#         # for sz in it:
+#         #     layers.append(nn.Linear(in_features=previous, out_features=sz))
+#         #     layers.append(nn.ReLU())
+#         #     previous = sz
+
+#         l = []
+
+#         for i, sz in enumerate(layers[:-1]):
+#             l.append(nn.Linear(sz, layers[i+1]))
+#             l.append(nn.ReLU())
+            
+#         self.md = nn.Sequential(*l)
+    
+#     def forward(self, input):
+#         return self.md(input)
+
+# md1 = Md([1, 2, 3])
+# for param in md1.parameters():
+#     print(param)
+# t1 = torch.tensor([1, ])
+# result = md1(t1)
+# print(result)
+
+# eps_decay = 1/2
+# min_eps = 0.2
+# init_eps = 1
+# episodes = 5
+
+# eps_decay = (min_eps / init_eps)**(1 / (episodes * 0.8))
+# print(eps_decay)
+# print(eps_decay**(episodes*0.8))
+
+# ddqn1 = DoubleDeepQNetwork(obs_dim_size=2, act_num_discrete=3, dqn_layer_sizes=(16, 32, 64))
+# for param in ddqn1.dnn_policy.parameters():
+#     print(param.size())
+
+# ddqn2 = DoubleDeepQNetwork(obs_dim_size=2, act_num_discrete=3)
+# for param in ddqn2.dnn_policy.parameters():
+#     print(param.size())

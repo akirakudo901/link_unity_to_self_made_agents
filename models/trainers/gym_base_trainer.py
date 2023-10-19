@@ -197,7 +197,7 @@ class GymOffPolicyBaseTrainer(OffPolicyBaseTrainer):
         def evaluate_on_environment(env):
             cum_rew = 0.0
             s, _ = env.reset() #reset the environment
-            terminated = truncated = False
+            terminated, truncated = False, False
             
             # Evaluation loop:
             while not (terminated or truncated):

@@ -5,6 +5,7 @@ An abstract environment-agnostic base trainer class to be inherited from.
 from abc import ABC, abstractmethod
 import logging
 import os
+import shutil
 from timeit import default_timer as timer
 import traceback
 from typing import List
@@ -329,23 +330,24 @@ class OffPolicyBaseTrainer(ABC):
 
                     intermediate_time = timer()
 
-                    # also save when evaluating
-                    self._save_training_progress(
-                        task_name=task_name,
-                        training_id=training_id,
-                        learning_algorithm=learning_algorithm,
-                        buffer=experiences,
-                        num_training_epochs=num_training_epochs,
-                        new_experience_per_epoch=new_experience_per_epoch,
-                        evaluate_every_N_epochs=evaluate_every_N_epochs,
-                        evaluate_N_samples=evaluate_N_samples,
-                        training_exploration_function_name=training_exploration_function_name,
-                        save_after_training=save_after_training,
-                        training_epochs_so_far=i,
-                        time_so_far=time_so_far + (intermediate_time - start_time),
-                        cumulative_rewards=cumulative_rewards,
-                        environment_name=self.env_name
-                    )
+                    if save_after_training:
+                        # also save when evaluating
+                        self._save_training_progress(
+                            task_name=task_name,
+                            training_id=training_id,
+                            learning_algorithm=learning_algorithm,
+                            buffer=experiences,
+                            num_training_epochs=num_training_epochs,
+                            new_experience_per_epoch=new_experience_per_epoch,
+                            evaluate_every_N_epochs=evaluate_every_N_epochs,
+                            evaluate_N_samples=evaluate_N_samples,
+                            training_exploration_function_name=training_exploration_function_name,
+                            save_after_training=save_after_training,
+                            training_epochs_so_far=i,
+                            time_so_far=time_so_far + (intermediate_time - start_time),
+                            cumulative_rewards=cumulative_rewards,
+                            environment_name=self.env_name
+                        )
                 
             if save_after_training: learning_algorithm.save(task_name)
             print("Training ended successfully!")
@@ -547,3 +549,20 @@ class OffPolicyBaseTrainer(ABC):
         buffer = NdArrayBuffer(max_size=1, obs_shape=(1, ), act_shape=(1, ))
         buffer.load(path=os.path.join(new_dir_path, f"{task_name}_{training_id}_buffer"))
         return (learning_algorithm, buffer, param_dict)
+    
+    def _delete_training_progress(
+            self,
+            task_name : str,
+            training_id : int
+            ):
+        """
+        Deletes the training progress identified by task name and 
+        training id. Raises an error if no such training progress exist.
+
+        :param str task_name: The task name.
+        :param int training_id: The training id.
+        """
+        delete_dir_path = os.path.join(OffPolicyBaseTrainer.PROGRESS_SAVING_DIR,
+                                       f"{task_name}_{training_id}_folder")
+        if os.path.exists(delete_dir_path):
+            shutil.rmtree(delete_dir_path)

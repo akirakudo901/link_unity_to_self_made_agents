@@ -337,5 +337,49 @@ class TestNdArrayBuffer(TestListBuffer):
         # then remove the saved npz
         os.remove(os.path.join("tests", "test_trainers", "test_utils", "Test_Buffer.npz"))
 
+    def test_intuition(self):
+        print("The following is an intuitive test!")
+        bf1 = NdArrayBuffer(max_size=100, obs_shape=(1,), act_shape=(1,))
+        for i in range(100):
+            bf1.append_experience(obs=np.array([i,]), act=np.array([100-i, ]), 
+                                rew=i%2, don=i%2==0, next_obs=np.array([i+1, ]))
+
+        obs, act, rew, don, next_obs = bf1.sample_random_experiences(num_samples=10)
+        print("Sampling from a list containing 100 numbered experiences:")
+        print("Randomly:")
+        print(f"obs: {np.squeeze(obs)}")
+        print(f"act: {np.squeeze(act)}")
+        print(f"rew: {np.squeeze(rew)}")
+        print(f"don: {np.squeeze(don)}")
+        print(f"next_obs: {np.squeeze(next_obs)}")
+        print("\n")
+
+        print("With seed 100:")
+        obs, act, rew, don, next_obs = bf1.sample_random_experiences(num_samples=10, seed=100)
+        print(f"obs: {np.squeeze(obs)}")
+        print(f"act: {np.squeeze(act)}")
+        print(f"rew: {np.squeeze(rew)}")
+        print(f"don: {np.squeeze(don)}")
+        print(f"next_obs: {np.squeeze(next_obs)}")
+        print("\n")
+
+        print("With seed 100 again:")
+        obs, act, rew, don, next_obs = bf1.sample_random_experiences(num_samples=10, seed=100)
+        print(f"obs: {np.squeeze(obs)}")
+        print(f"act: {np.squeeze(act)}")
+        print(f"rew: {np.squeeze(rew)}")
+        print(f"don: {np.squeeze(don)}")
+        print(f"next_obs: {np.squeeze(next_obs)}")
+        print("\n")
+
+        print("With seed 200:")
+        obs, act, rew, don, next_obs = bf1.sample_random_experiences(num_samples=10, seed=200)
+        print(f"obs: {np.squeeze(obs)}")
+        print(f"act: {np.squeeze(act)}")
+        print(f"rew: {np.squeeze(rew)}")
+        print(f"don: {np.squeeze(don)}")
+        print(f"next_obs: {np.squeeze(next_obs)}")
+        print("\n")
+
 if __name__ == "__main__":
     unittest.main()
