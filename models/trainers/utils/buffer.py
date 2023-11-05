@@ -313,8 +313,8 @@ class NdArrayBuffer(Buffer):
         #choose the indices
         indices = rng.choice(range(self._size), size=num_samples, replace=False)
         # returns a copy as a result of fancy indexing as of right now
-        return (self.obs[indices], self.actions[indices], self.rewards[indices], 
-                self.dones[indices], self.next_obs[indices])
+        return (self.obs[indices].copy(), self.actions[indices].copy(), self.rewards[indices].copy(), 
+                self.dones[indices].copy(), self.next_obs[indices].copy())
     
     def shuffle(self):
         """

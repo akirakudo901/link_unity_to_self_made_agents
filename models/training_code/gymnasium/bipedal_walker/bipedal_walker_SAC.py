@@ -3,79 +3,116 @@ Implementation of SAC training with the bipedal walker environment with gym.
 """
 
 import gymnasium
-import numpy as np
-import torch
+from copy import deepcopy
 
-from models.policy_learning_algorithms.soft_actor_critic import SoftActorCritic
+from models.policy_learning_algorithms.policy_learning_algorithm import no_exploration
+from models.policy_learning_algorithms.soft_actor_critic import SoftActorCritic, uniform_random_sampling_wrapper
 from models.trainers.gym_base_trainer import GymOffPolicyBaseTrainer
 
 # create the environment and determine specs about it
 env = gymnasium.make("BipedalWalker-v3")#, render_mode="human")
-# observation_size = env.observation_space.shape[0]
-# action_size = env.action_space.shape[0]
-# action_ranges = tuple([(env.action_space.low[i], env.action_space.high[i]) for i in range(action_size)])
-
-learning_algorithm = SoftActorCritic(
-    q_net_learning_rate=1e-3, 
-    policy_learning_rate=1e-3, 
-    discount=0.99, 
-    temperature=0.15,
-    qnet_update_smoothing_coefficient=0.005,
-    # obs_dim_size=observation_size,
-    # act_dim_size=action_size, 
-    # act_ranges=action_ranges,
-    pol_eval_batch_size=64,
-    pol_imp_batch_size=64,
-    update_qnet_every_N_gradient_steps=1,
-    env=env
-    # leave the optimizer as the default = Adam
-    )
-
 trainer = GymOffPolicyBaseTrainer(env)
+MAX_EPISODE_STEPS = 1600
 
-# The number of training steps that will be performed
-NUM_TRAINING_STEPS = 10000
-# The number of experiences to be initlally collected before doing any training
-NUM_INIT_EXP = 3000
-# The number of experiences to collect per training step
-NUM_NEW_EXP = 1
-# The maximum size of the Buffer
-BUFFER_SIZE = 10**5
+parameters = {
+    "play_around" : {
+        "q_net_learning_rate"  : 1e-3,
+        "policy_learning_rate" : 1e-3,
+        "discount" : 0.99,
+        "temperature" : 0.10,
+        "qnet_update_smoothing_coefficient" : 0.005,
+        "pol_eval_batch_size" : 64,
+        "pol_imp_batch_size" : 64,
+        "update_qnet_every_N_gradient_steps" : 1,
+        "num_training_steps" : MAX_EPISODE_STEPS * 50,
+        "num_init_exp" : 0,
+        "num_new_exp" : 1,
+        "evaluate_every_N_epochs" : MAX_EPISODE_STEPS,
+        "buffer_size" : int(1e6),
+        "save_after_training" : True,
+        "training_id" : 7
+    }
+}
 
-TASK_NAME = "SAC" + "_BipedalWalker"
+def generate_parameters(default_parameters, **kwargs):
 
-def uniform_random_sampling(actions, env):
-    # initially sample actions from a uniform random distribution of the right
-    # range, in order to extract good reward signals
-    action_zero_to_one = torch.rand(size=(learning_algorithm.act_dim_size,)).cpu()
-    action_minus_one_to_one = action_zero_to_one * 2.0 - 1.0
-    adjusted_actions = (action_minus_one_to_one * 
-                        learning_algorithm.policy.action_multiplier.detach().cpu() + 
-                        learning_algorithm.policy.action_avgs.detach().cpu())
-    return adjusted_actions.numpy()
+    def new_dict_from_old(old_name, old_dict, key, val):
+        if old_name == "default":
+            new_name = f"{key}_{str(val)}"
+        else:
+            new_name = name + f"_{key}_{str(val)}"
+        old_dict[key] = val
+        return new_name, old_dict
 
-def no_exploration(actions, env):
-    # since exploration is inherent in SAC, we don't need epsilon to do anything
-    # we however need to convert torch.tensor back to numpy arrays.
-    if type(actions) == type(torch.tensor([0])):
-        return actions.detach().to(torch.device("cpu")).numpy()
-    elif type(actions) == type(np.array([0])):
-        return actions
-    else:
-        raise Exception("Value passed as action to no_exploration was of type ", type(actions), 
-                        "but should be either a torch.tensor or np.ndarray to successfully work.") 
+    returned = {"default" : default_parameters}
+    for key, values in kwargs.items():
+        if type(values) != type([]):
+            for d in returned.values(): d[key] = values
+        elif type(values) == type([]) and len(values) == 0:
+            pass
+        elif type(values) == type([]):
+            new_dicts = {}
+            for name, d in returned.items():
+                new_name, new_dict = new_dict_from_old(old_name=name, 
+                                                       old_dict=d, 
+                                                       key=key, 
+                                                       val=values[0])
+                new_dicts[new_name] = new_dict 
+                
+                for v in values[1:]:
+                    new_d = deepcopy(d)
+                    new_name, new_dict = new_dict_from_old(old_name=name,
+                                                           old_dict=new_d,
+                                                           key=key,
+                                                           val=v)
+                    new_dicts[new_name] = new_dict
+            returned = new_dicts
+    return returned
+        
+def train_SAC_on_bipedal_walker(parameter_name : str, params_dict = parameters):
 
-l_a = trainer.train(
-    learning_algorithm=learning_algorithm,
-    num_training_epochs=NUM_TRAINING_STEPS, 
-    new_experience_per_epoch=NUM_NEW_EXP,
-    max_buffer_size=BUFFER_SIZE,
-    num_initial_experiences=NUM_INIT_EXP,
-    evaluate_every_N_epochs=NUM_TRAINING_STEPS // 10,
-    evaluate_N_samples=3,
-    initial_exploration_function=uniform_random_sampling,
-    training_exploration_function=no_exploration,
-    save_after_training=True,
-    task_name=TASK_NAME,
-    render_evaluation=False
-    )
+    print(f"Training: {parameter_name}")
+
+    param = params_dict[parameter_name]
+
+    learning_algorithm = SoftActorCritic(
+        q_net_learning_rate=param["q_net_learning_rate"], 
+        policy_learning_rate=param["policy_learning_rate"], 
+        discount=param["discount"], 
+        temperature=param["temperature"],
+        qnet_update_smoothing_coefficient=param["qnet_update_smoothing_coefficient"],
+        pol_eval_batch_size=param["pol_eval_batch_size"],
+        pol_imp_batch_size=param["pol_imp_batch_size"],
+        update_qnet_every_N_gradient_steps=param["update_qnet_every_N_gradient_steps"],
+        env=env
+        # leave the optimizer as the default = Adam
+        )
+    
+    TASK_NAME = learning_algorithm.ALGORITHM_NAME + "_" + env.spec.id
+
+    l_a = trainer.train(
+        learning_algorithm=learning_algorithm,
+        num_training_epochs=param["num_training_steps"], 
+        new_experience_per_epoch=param["num_new_exp"],
+        max_buffer_size=param["buffer_size"],
+        num_initial_experiences=param["num_init_exp"],
+        evaluate_every_N_epochs=param["evaluate_every_N_epochs"],
+        evaluate_N_samples=1,
+        initial_exploration_function=uniform_random_sampling_wrapper(learning_algorithm),
+        training_exploration_function=no_exploration,
+        training_exploration_function_name="no_exploration",
+        save_after_training=param["save_after_training"],
+        task_name=TASK_NAME + parameter_name + str(param["temperature"]),
+        training_id=param["training_id"],
+        render_evaluation=False
+        )
+
+    return l_a
+
+params_to_try = generate_parameters(default_parameters=parameters["play_around"],
+                                    tempearture = [0.05, 0.10, 0.15, 0.20, 0.25])
+
+for i, name_and_dict in enumerate(params_to_try.items()):
+    name, p = name_and_dict
+    p["training_id"] = i
+    train_SAC_on_bipedal_walker(name, params_dict=params_to_try)

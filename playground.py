@@ -307,10 +307,133 @@ import torch
 #         print("Some exception occurred while saving algorithm parameters...")
 
 # try_saving_except(save, "abc", second="Second")
-from models.policy_learning_algorithms.soft_actor_critic import uniform_random_sampling_wrapper, SoftActorCritic
-sac1 = SoftActorCritic(1.0, 1.0, 1.0, 1.0, 1.0, 1, 1, 1, 
-                       2, 3, ((0, 1),(2, 3),(-1, 2)))
+# from models.policy_learning_algorithms.soft_actor_critic import uniform_random_sampling_wrapper, SoftActorCritic
+# sac1 = SoftActorCritic(1.0, 1.0, 1.0, 1.0, 1.0, 1, 1, 1, 
+#                        2, 3, ((0, 1),(2, 3),(-1, 2)))
 
-urs = uniform_random_sampling_wrapper(learning_algorithm=sac1)
-returned = urs(actions=None, env=None)
-print(returned)
+# urs = uniform_random_sampling_wrapper(learning_algorithm=sac1)
+# returned = urs(actions=None, env=None)
+# print(returned)
+
+# import random
+# random.seed(10)
+# print(random.randint(1, 100))
+# print(random.randint(1, 100))
+
+# random.seed(None)
+# print(random.randint(1, 100))
+# print(random.randint(1, 100))
+
+# random.seed(10)
+# print(random.randint(1, 100))
+# print(random.randint(1, 100))
+
+# from torch.distributions.independent import Independent
+# from torch.distributions.normal import Normal
+# from torch.distributions.multivariate_normal import MultivariateNormal
+
+# loc = torch.zeros(3)
+# scale = torch.ones(3)
+# # multivariate normal
+# torch.manual_seed(42)
+# mvn = MultivariateNormal(loc, scale_tril=torch.diag(scale))
+# print(f"mvn.batch_shape: {mvn.batch_shape}, mvn.event_shape: {mvn.event_shape}")
+# mvn_sample = mvn.rsample()
+# print(f"mvn_sample: {mvn_sample}, mvn_sample.shape: {mvn_sample.shape}")
+# mvn_log_probs = mvn.log_prob(mvn_sample)
+# print(f"mvn_log_probs: {mvn_log_probs}, mvn_log_probs.shape: {mvn_log_probs.shape}")
+# print("\n")
+
+# # normal
+# torch.manual_seed(42)
+# normal = Normal(loc, scale)
+# print(f"normal.batch_shape: {normal.batch_shape}, normal.event_shape: {normal.event_shape}")
+# normal_sample = normal.rsample()
+# print(f"normal_sample: {normal_sample}, normal_sample.shape: {normal_sample.shape}")
+# normal_log_probs = normal.log_prob(normal_sample)
+# print(f"normal_log_probs: {normal_log_probs}, normal_log_probs.shape: {normal_log_probs.shape}")
+# print("\n")
+
+# # diagonal
+# torch.manual_seed(42)
+# diagn = Independent(normal, 1)
+# print(f"diagn.batch_shape: {diagn.batch_shape}, diagn.event_shape: {diagn.event_shape}")
+# diagn_sample = diagn.rsample()
+# print(f"diagn_sample: {diagn_sample}, diagn_sample.shape: {diagn_sample.shape}")
+# diagn_log_probs = diagn.log_prob(diagn_sample)
+# print(f"diagn_log_probs: {diagn_log_probs}, diagn_log_probs.shape: {diagn_log_probs.shape}")
+# print("\n")
+
+# multiplier = torch.tensor(3).to(torch.float32)
+# actions = torch.tensor([[[1, 2, 3],],])
+# print("actions: ", actions)
+# print("actions.shape: ", actions.shape)
+
+# jacobian_trace = torch.sum(
+#     torch.log(multiplier) + 
+#     (2. * (torch.log(torch.tensor(2.)) - 
+#            actions - 
+#            torch.nn.functional.softplus(-2. * actions))), 
+#            dim=2)
+# print("jacobian_trace: ", jacobian_trace)
+
+# jacobian_trace2 = (torch.log(multiplier) * actions.shape[2] + 
+#                    torch.sum(
+#                        (2. * (torch.log(torch.tensor(2.)) - 
+#                               actions - 
+#                               torch.nn.functional.softplus(-2. * actions))), 
+#                               dim=2))
+# print("jacobian_trace2: ", jacobian_trace2)
+
+# import gymnasium
+# import numpy as np
+
+# env1 = gymnasium.make("Pendulum-v1", render_mode="human")
+# env1.reset()
+# action = np.array([-0.5])
+
+# for i in range(100):
+#     env1.step(action)
+
+# env2 = gymnasium.make("Pendulum-v1")
+# env2.reset()
+
+# for i in range(50):
+#     env2.step(action)
+
+# env2.close()
+
+# for i in range(200):
+#     env1.step(action)
+
+# env1.close()
+
+# import wandb
+# import matplotlib.pyplot as plt
+
+# wandb.init(
+#     project='trial_playground',
+#     settings=wandb.Settings(_disable_stats=True),
+#     name=f'run_id={3}'
+# )
+
+# epochs, avg_reward, max_r, min_r = [1, 2, 3, 4], [10, 11, 12, 13], [18, 12, 15, 19], [9, 9, 8.5, 10]
+# data = [[epoch, avg, max, min] for (epoch, avg, max, min) in zip(epochs, avg_reward, max_r, min_r)]
+# table = wandb.Table(data=data, columns = ["Epochs", "Average Reward", "Max Reward", "Min Reward"])
+
+# plt.plot(epochs, avg_reward, label="Average Reward")
+# plt.plot(epochs, max_r, label="Max Reward")
+# plt.plot(epochs, min_r, label="Min Reward")
+# plt.xlabel("Epochs"); plt.ylabel("Rewards")
+# plt.legend()
+
+# wandb.log({"multi-trial rewards" : wandb.Image(plt)})
+
+import gymnasium
+from models.policy_learning_algorithms.soft_actor_critic import SoftActorCritic
+
+env = gymnasium.make("BipedalWalker-v3")
+sac = SoftActorCritic(1e-3, 1e-3, 0.99, 0.1, 0.005, 64, 64, 1, env=env)
+print(sac.obs_dim_size)
+print(sac.act_dim_size)
+print(sac.act_ranges)

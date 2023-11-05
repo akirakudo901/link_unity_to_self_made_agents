@@ -55,6 +55,69 @@ class GymOffPolicyBaseTrainer(OffPolicyBaseTrainer):
         self.last_action : np.ndarray = None
         self.last_observation : np.ndarray = None
 
+    # def generate_experience(
+    #         self,
+    #         buffer : Buffer,
+    #         exploration_function, 
+    #         learning_algorithm : PolicyLearningAlgorithm
+    #         ) -> Experience:
+    #     """
+    #     Executes a single step in the environment to generate experiences,
+    #     and adds them to a passed buffer.
+    #     The experience involves some exploration (vs. exploitation) which behavior 
+    #     is determined by exploration_function.
+    #     Also returns the number of newly generated experiences.
+        
+    #     :param Buffer buffer: The buffer to which we add generated experience.
+    #     :param exploration_function: A function which controls how exploration is handled 
+    #     during collection of experiences.
+    #     :param PolicyLearningAlgorithm learning_algorithm: The algorithm which provides policy, 
+    #     evaluating actions given states per batches.
+    #     :returns int: The number of newly generated experiences.
+    #     """
+        
+    #     # if self.last_action is None (beginning of training), we reset env and take a step first
+    #     if type(self.last_action) == type(None):
+    #         self.last_observation, _ = self.env.reset()
+    #         self.last_action = exploration_function(
+    #             np.squeeze( #adjust, as output from learning_algo always has a batch dimension
+    #                 learning_algorithm(np.expand_dims(self.last_observation.copy(), 0)), 
+    #                 axis=0
+    #             ), 
+    #             self.env
+    #         )
+
+    #     new_observation, reward, terminated, truncated, _ = self.env.step(self.last_action.copy())
+            
+    #     # generate the new experience based on the last stored info and the new info,
+    #     # adding it to the passed buffer
+    #     buffer.append_experience(obs=self.last_observation.copy(), act=self.last_action.copy(), 
+    #                              rew=reward, don=terminated, next_obs=new_observation.copy())
+    #     # update last observation
+    #     self.last_observation = new_observation
+
+    #     # if the environment hasn't ended
+    #     if not (terminated or truncated):
+    #         # Generate actions for agents while applying the exploration function to 
+    #         # promote exploration of the world
+            
+    #         best_action = exploration_function(
+    #             np.squeeze( #adjust, as output from learning_algo always has a batch dimension
+    #                 learning_algorithm(np.expand_dims(self.last_observation.copy(), 0)), 
+    #                 axis=0
+    #             ),
+    #             self.env
+    #         )
+            
+    #         # Store info of action picked to generate new experience in the next loop
+    #         self.last_action = best_action
+    #     else:
+    #         # reset the state of this trainer (not the environment!)
+    #         self.reset_trainer()
+
+    #     return 1 #for the above code, we only produce one experience per step
+
+
     def generate_experience(
             self,
             buffer : Buffer,
@@ -75,43 +138,30 @@ class GymOffPolicyBaseTrainer(OffPolicyBaseTrainer):
         evaluating actions given states per batches.
         :returns int: The number of newly generated experiences.
         """
-        
+
         # if self.last_action is None (beginning of training), we reset env and take a step first
-        if type(self.last_action) == type(None):
+        if type(self.last_observation) == type(None):
             self.last_observation, _ = self.env.reset()
-            self.last_action = exploration_function(
-                np.squeeze( #adjust, as output from learning_algo always has a batch dimension
-                    learning_algorithm(np.expand_dims(self.last_observation, 0)), 
-                    axis=0
+
+        action = exploration_function(
+            np.squeeze( #adjust, as output from learning_algo always has a batch dimension
+                learning_algorithm(np.expand_dims(self.last_observation.copy(), 0)), 
+                axis=0
                 ), 
                 self.env
             )
-
-        new_observation, reward, terminated, truncated, _ = self.env.step(self.last_action)
+        
+        new_observation, reward, terminated, truncated, _ = self.env.step(action.copy())
             
         # generate the new experience based on the last stored info and the new info,
         # adding it to the passed buffer
-        buffer.append_experience(obs=self.last_observation, act=self.last_action, 
-                                 rew=reward, don=terminated, next_obs=new_observation)
+        buffer.append_experience(obs=self.last_observation.copy(), act=action.copy(), 
+                                 rew=reward, don=terminated, next_obs=new_observation.copy())
         # update last observation
         self.last_observation = new_observation
 
-        # if the environment hasn't ended
-        if not (terminated or truncated):
-            # Generate actions for agents while applying the exploration function to 
-            # promote exploration of the world
-            
-            best_action = exploration_function(
-                np.squeeze( #adjust, as output from learning_algo always has a batch dimension
-                    learning_algorithm(np.expand_dims(self.last_observation, 0)), 
-                    axis=0
-                ),
-                self.env
-            )
-            
-            # Store info of action picked to generate new experience in the next loop
-            self.last_action = best_action
-        else:
+        # if the environment has ended
+        if terminated or truncated:
             # reset the state of this trainer (not the environment!)
             self.reset_trainer()
 

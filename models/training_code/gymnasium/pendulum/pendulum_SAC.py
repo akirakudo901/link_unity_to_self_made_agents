@@ -7,37 +7,18 @@ If we can't solve this, there is an error somewhere in the code to be fixed.
 """
 
 import gymnasium
-import numpy as np
-import torch
 
 from models.policy_learning_algorithms.policy_learning_algorithm import no_exploration
 from models.policy_learning_algorithms.soft_actor_critic import SoftActorCritic, uniform_random_sampling_wrapper
 from models.trainers.gym_base_trainer import GymOffPolicyBaseTrainer
-from models.trainers.utils.gym_observation_scaling_wrapper import GymObservationScaling
 
 # create the environment and determine specs about it
 env = gymnasium.make("Pendulum-v1")#, render_mode="human")
-env = GymObservationScaling(env, obs_max=1.0, obs_min=-1.0)
-
 trainer = GymOffPolicyBaseTrainer(env)
+MAX_EPISODE_STEPS = 200
 
 parameters = {
-    # "online_example" : { #https://github.com/zhihanyang2022/pytorch-sac/blob/main/params_pool.py
-    #     "q_net_learning_rate"  : 1e-3,
-    #     "policy_learning_rate" : 1e-3,
-    #     "discount" : 0.99,
-    #     "temperature" : 0.1,
-    #     "qnet_update_smoothing_coefficient" : 0.005,
-    #     "pol_eval_batch_size" : 64,
-    #     "pol_imp_batch_size" : 64,
-    #     "update_qnet_every_N_gradient_steps" : 1,
-    #     "num_training_steps" : 10000,
-    #     "num_init_exp" : 1000,
-    #     "num_new_exp" : 1,
-    #     "buffer_size" : 10000,
-    #     "save_after_training" : True
-    # },
-    "play_around" : {
+    "online_example" : { #https://github.com/zhihanyang2022/pytorch-sac/blob/main/params_pool.py
         "q_net_learning_rate"  : 1e-3,
         "policy_learning_rate" : 1e-3,
         "discount" : 0.99,
@@ -46,12 +27,13 @@ parameters = {
         "pol_eval_batch_size" : 64,
         "pol_imp_batch_size" : 64,
         "update_qnet_every_N_gradient_steps" : 1,
-        "num_training_steps" : 1000,
-        "num_init_exp" : 1000,
+        "num_training_steps" : MAX_EPISODE_STEPS * 100,
+        "num_init_exp" : 0,
         "num_new_exp" : 1,
+        "evaluate_every_N_epochs" : 200,
         "buffer_size" : int(1e6),
         "save_after_training" : False,
-        "training_id" : 3
+        "training_id" : 7
     }
 }
 
@@ -83,15 +65,15 @@ def train_SAC_on_pendulum(parameter_name : str):
         new_experience_per_epoch=param["num_new_exp"],
         max_buffer_size=param["buffer_size"],
         num_initial_experiences=param["num_init_exp"],
-        evaluate_every_N_epochs=param["num_training_steps"] // 20,
-        evaluate_N_samples=3,
+        evaluate_every_N_epochs=param["evaluate_every_N_epochs"],
+        evaluate_N_samples=1,
         initial_exploration_function=uniform_random_sampling_wrapper(learning_algorithm),
         training_exploration_function=no_exploration,
         training_exploration_function_name="no_exploration",
         save_after_training=param["save_after_training"],
         task_name=TASK_NAME + parameter_name + str(param["temperature"]),
         training_id=param["training_id"],
-        render_evaluation=False
+        render_evaluation=True
         )
 
     return l_a

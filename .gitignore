@@ -8,3 +8,5 @@
 /trained_algorithms
 # ignore all algorithm theory notes
 /algorithm_theories
+# ignore everything pertaining to wandb
+/wandb

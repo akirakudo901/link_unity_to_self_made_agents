@@ -11,6 +11,7 @@ import traceback
 from typing import List
 
 import matplotlib.pyplot as plt
+import wandb
 import yaml
 
 from models.trainers.utils.buffer import Buffer, NdArrayBuffer
@@ -78,9 +79,11 @@ class OffPolicyBaseTrainer(ABC):
         num_generated_experiences = 0
 
         while num_generated_experiences < buffer_size:
-            num_generated_experiences += self.generate_experience(buffer, 
-                                                                  exploration_function, 
-                                                                  learning_algorithm)
+            num_generated_experiences += self.generate_experience(
+                buffer=buffer, 
+                exploration_function=exploration_function, 
+                learning_algorithm=learning_algorithm
+                )
     
     @abstractmethod
     def train(
@@ -178,114 +181,6 @@ class OffPolicyBaseTrainer(ABC):
         
         except Exception:
             logging.error(traceback.format_exc())
-        
-    # @abstractmethod
-    # def train(
-    #         self,
-    #         learning_algorithm : PolicyLearningAlgorithm,
-    #         num_training_epochs : int,
-    #         new_experience_per_epoch : int,
-    #         max_buffer_size : int,
-    #         num_initial_experiences : int,
-    #         evaluate_every_N_epochs : int,
-    #         evaluate_N_samples : int,
-    #         initial_exploration_function,
-    #         training_exploration_function,
-    #         save_after_training : bool,
-    #         task_name : str
-    #         )-> PolicyLearningAlgorithm:
-    #     """
-    #     An abstract function which trains the given algorithm with given 
-    #     parameter specifications.
-
-    #     :param PolicyLearningAlgorithm learning_algorithm: The algorithm to train.
-    #     :param int num_training_epochs: How many training epochs are executed.
-    #     :param int new_experience_per_epoch: The number of minimum experience to 
-    #     produce per epoch. *actual number of newly produced experience might 
-    #     differ since the smallest increment of the number of experience matches that
-    #     produced by generate_experience. 
-    #     :param int max_buffer_size: The maximum number of experience to keep in buffer.
-    #     :param int num_initial_experiences: The number of experiences added to buffer 
-    #     before training starts.
-    #     :param int evaluate_every_N_epochs: How frequently we evaluate the algorithm
-    #     using self.evaluate.
-    #     :param int evaluate_N_samples: How many samples of cumulative reward trajectory you 
-    #     average for evaluate.
-    #     :param initial_exploration_function: The exploration function used when producing
-    #     the initial experiences.
-    #     :param training_exploration_function: The exploration function used when producing
-    #     experiences while training the algorithm.
-    #     :param bool save_after_training: Whether to save the resulting algorithm using
-    #     PolicyLearningAlgorithm.save().
-    #     :param str task_name: The name of this task.
-    #     :return PolicyLearningAlgorithm: The trained algorithm.
-    #     """
-    #     start_time = timer()
-        
-    #     try:
-    #         experiences : Buffer = OffPolicyBaseTrainer.BUFFER_IMPLEMENTATION(max_size=max_buffer_size,
-    #                                                                           obs_shape=self.obs_shape,
-    #                                                                           act_shape=self.act_shape)
-    #         cumulative_rewards : List[float] = []
-
-    #         # first populate the buffer with num_initial_experiences experiences
-    #         print(f"Generating {num_initial_experiences} initial experiences...")
-    #         self.generate_batch_of_experiences(
-    #             buffer=experiences,
-    #             buffer_size=num_initial_experiences,
-    #             exploration_function=initial_exploration_function,
-    #             learning_algorithm=learning_algorithm
-    #         )
-    #         print("Generation successful!")
-                            
-    #         # then go into the training loop
-    #         for i in range(num_training_epochs):
-                
-    #             self.generate_batch_of_experiences(
-    #                 buffer=experiences,
-    #                 buffer_size=new_experience_per_epoch,
-    #                 exploration_function=training_exploration_function,
-    #                 learning_algorithm=learning_algorithm
-    #             )
-                
-    #             learning_algorithm.update(experiences)
-
-    #             # evaluate sometimes
-    #             if (i + 1) % (evaluate_every_N_epochs) == 0:
-    #                 cumulative_reward = self.evaluate(learning_algorithm, evaluate_N_samples)
-    #                 cumulative_rewards.append(cumulative_reward)
-    #                 print(f"Training loop {i+1}/{num_training_epochs} successfully ended: reward={cumulative_reward}.\n")
-                
-    #         if save_after_training: learning_algorithm.save(task_name)
-    #         print("Training ended successfully!")
-
-    #     except KeyboardInterrupt:
-    #         print("\nTraining interrupted, continue to next cell to save to save the model.")
-    #     except Exception:
-    #         logging.error(traceback.format_exc())
-    #     finally:
-    #         end_time = timer()
-
-    #         print("Closing envs...")
-    #         self.env.close()
-    #         print("Successfully closed envs!")
-
-    #         print(f"Execution time: {end_time - start_time} sec.") #float fractional seconds?
-
-    #         # Show the training graph
-    #         try:
-    #             plt.clf()
-    #             plt.title(f"{task_name} Cumulative reward")
-    #             plt.xlabel("Epochs")
-    #             plt.ylabel("Cumulative Reward")
-    #             plt.plot(range(0, len(cumulative_rewards)*evaluate_every_N_epochs, evaluate_every_N_epochs), cumulative_rewards)
-    #             plt.savefig(f"{task_name}_cumulative_reward_fig.png")
-    #             plt.show()
-    #             learning_algorithm.show_loss_history(task_name=task_name, save_figure=True, save_dir=None)
-    #         except Exception:
-    #             logging.error(traceback.format_exc())
-    
-    #         return learning_algorithm
     
     def _helper_train(self,
                       learning_algorithm : PolicyLearningAlgorithm,
@@ -306,6 +201,13 @@ class OffPolicyBaseTrainer(ABC):
         """
         Helper to abstract code from both train() and resume_training().
         """
+        wandb.init(
+            project='MINT-RL-Algorithms',
+            group=f'{task_name}_{learning_algorithm.ALGORITHM_NAME}',
+            settings=wandb.Settings(_disable_stats=True),
+            name=f'run_id={training_id}'
+        )
+
         start_time = timer()
         
         try:
@@ -319,7 +221,7 @@ class OffPolicyBaseTrainer(ABC):
                     exploration_function=training_exploration_function,
                     learning_algorithm=learning_algorithm
                 )
-                
+
                 learning_algorithm.update(experiences)
 
                 # evaluate sometimes
@@ -327,8 +229,11 @@ class OffPolicyBaseTrainer(ABC):
                     cumulative_reward = self.evaluate(learning_algorithm, evaluate_N_samples)
                     cumulative_rewards.append(cumulative_reward)
                     print(f"Training loop {i+1}/{num_training_epochs} successfully ended: reward={cumulative_reward}.\n")
+                    
+                    wandb.log({"Cumulative Reward" : cumulative_reward})
 
                     intermediate_time = timer()
+                    wandb.log({"Time Elapsed" : (intermediate_time - start_time)})
 
                     if save_after_training:
                         # also save when evaluating
@@ -377,10 +282,12 @@ class OffPolicyBaseTrainer(ABC):
                 plt.plot(range(0, len(cumulative_rewards)*evaluate_every_N_epochs, evaluate_every_N_epochs), cumulative_rewards)
                 plt.savefig(os.path.join(new_dir_path, f"{task_name}_{training_id}_cumulative_reward_fig.png"))
                 plt.show()
-                learning_algorithm.show_loss_history(task_name=task_name, save_figure=True, 
+                learning_algorithm.show_loss_history(task_name=task_name, save_figure=True,
                                                      save_dir=new_dir_path)
             except Exception:
                 logging.error(traceback.format_exc())
+            
+            wandb.finish()
     
             return learning_algorithm
 

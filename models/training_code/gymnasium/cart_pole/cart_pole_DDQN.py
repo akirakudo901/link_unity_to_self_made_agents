@@ -45,12 +45,12 @@ parameters = {
           "d_r" : 0.99, 
           "soft_update_coefficient" : 0.1,
           "update_target_every_N_updates" : 1,
-          "num_training_steps" : 50000,
+          "num_training_steps" : 5000,
           "num_init_exp" : 500,
           "num_new_exp" : 1,
           "buffer_size" : 100000,
           "save_after_training" : False,
-          "training_id" : 102,
+          "training_id" : 103,
            }
 }
 

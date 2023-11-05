@@ -160,6 +160,8 @@ class DoubleDeepQNetwork(PolicyLearningAlgorithm):
         :return float loss: Returns the loss within this update.
         """
         BATCH_SIZE = 32
+
+        if buffer.size() < BATCH_SIZE: return
         
         # sample a minibatch of transitions from the buffer
         np_obs, np_act, np_rew, np_don, np_next_obs = buffer.sample_random_experiences(num_samples=BATCH_SIZE) #TODO no seed, how to incorporate it?

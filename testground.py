@@ -303,3 +303,67 @@ from models.policy_learning_algorithms.soft_actor_critic import SoftActorCritic
 # ddqn2 = DoubleDeepQNetwork(obs_dim_size=2, act_num_discrete=3)
 # for param in ddqn2.dnn_policy.parameters():
 #     print(param.size())
+
+# from copy import deepcopy
+
+# def generate_parameters(default_parameters, **kwargs):
+
+#     def new_dict_from_old(old_name, old_dict, key, val):
+#         if old_name == "default":
+#             new_name = f"{key}_{str(val)}"
+#         else:
+#             new_name = name + f"_{key}_{str(val)}"
+#         old_dict[key] = val
+#         return new_name, old_dict
+
+#     returned = {"default" : default_parameters}
+#     for key, values in kwargs.items():
+#         if type(values) != type([]):
+#             for d in returned.values(): d[key] = values
+#         elif type(values) == type([]) and len(values) == 0:
+#             pass
+#         elif type(values) == type([]):
+#             new_dicts = {}
+#             for name, d in returned.items():
+#                 new_name, new_dict = new_dict_from_old(old_name=name, 
+#                                                        old_dict=d, 
+#                                                        key=key, 
+#                                                        val=values[0])
+#                 new_dicts[new_name] = new_dict 
+                
+#                 for v in values[1:]:
+#                     new_d = deepcopy(d)
+#                     new_name, new_dict = new_dict_from_old(old_name=name,
+#                                                            old_dict=new_d,
+#                                                            key=key,
+#                                                            val=v)
+#                     new_dicts[new_name] = new_dict
+#             returned = new_dicts
+#     return returned
+
+# MAX_EPISODE_STEPS = 200
+
+# params = generate_parameters(default_parameters={
+#     "q_net_learning_rate"  : 1e-3,
+#     "policy_learning_rate" : 1e-3,
+#     "discount" : 0.99,
+#     "temperature" : 0.10,
+#     "qnet_update_smoothing_coefficient" : 0.005,
+#     "pol_eval_batch_size" : 64,
+#     "pol_imp_batch_size" : 64,
+#     "update_qnet_every_N_gradient_steps" : 1,
+#     "num_training_steps" : MAX_EPISODE_STEPS * 50,
+#     "num_init_exp" : 0,
+#     "num_new_exp" : 1,
+#     "evaluate_every_N_epochs" : MAX_EPISODE_STEPS,
+#     "buffer_size" : int(1e6),
+#     "save_after_training" : False,
+#     "training_id" : 7
+#     },
+#     temperature = [1, 2, 3, 4],
+#     discount = [0, 10, 20, 30])
+
+# for name, param in params.items():
+#     print(f"{name}:")
+#     print(param)
+#     print("\n")
