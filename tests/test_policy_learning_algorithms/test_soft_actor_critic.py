@@ -112,7 +112,26 @@ class TestSoftActorCritic(unittest.TestCase):
         self.assertEqual(qnet1_loss_history1, sac2.qnet1_loss_history)
         self.assertEqual(qnet2_loss_history1, sac2.qnet2_loss_history)
         self.assertEqual(policy_loss_history1, sac2.policy_loss_history)
+    
+    def test_create_net(self):
+        def verify_correct_layer_size(layer_sizes, layers):
+            for i, l in enumerate(layers):
+                layersz_idx = i // 2
+                if i % 2 == 0:
+                    self.assertEqual(l.in_features, layer_sizes[layersz_idx])
+                    self.assertEqual(l.out_features, layer_sizes[layersz_idx + 1])
+                    
+        net1 = SoftActorCritic.create_net(input_size=3, output_size=5, interim_layer_sizes=(8, 32))
+        layer_sizes = (3, 8, 32, 5)
+        verify_correct_layer_size(layer_sizes, net1)
 
+        net2 = SoftActorCritic.create_net(input_size=45, output_size=2, interim_layer_sizes=(10, 20, 30))
+        layer_sizes2 = (45, 10, 20, 30, 2)
+        verify_correct_layer_size(layer_sizes2, net2)
+
+        net3 = SoftActorCritic.create_net(input_size=4, output_size=1, interim_layer_sizes=(64, 64))
+        layer_sizes3 = (4, 64, 64, 1)
+        verify_correct_layer_size(layer_sizes3, net3)
 
 class TestSoftActorCritic_Policy(unittest.TestCase):
     """

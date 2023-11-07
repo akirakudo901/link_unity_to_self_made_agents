@@ -1,4 +1,4 @@
-1) Check why the cumulative rewards is behaving weirdly when we load progress.
-2) Check if using the same sources for training both the qnet and policy makes it more learning.
-3) Try to implement and see if an open source code would work on our code - see if it might be my 
-SAC code, or my trainer's code's problem that shit aren't learned.
+
+
+Forever todo: Test my codes? Haven't tested most of the trainer code, for example. 
+But don't really know how.

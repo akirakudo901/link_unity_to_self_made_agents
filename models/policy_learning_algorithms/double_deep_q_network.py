@@ -30,7 +30,8 @@ class DoubleDeepQNetwork(PolicyLearningAlgorithm):
                 layers = []
                 for i, sz in enumerate(dqn_layer_sizes[:-1]):
                     layers.append(nn.Linear(sz, dqn_layer_sizes[i+1]))
-                    layers.append(nn.ReLU())
+                    if i != len(dqn_layer_sizes) - 2:
+                        layers.append(nn.ReLU())
                 
                 self.fc_relu_stack = nn.Sequential(*layers)
             

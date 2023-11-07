@@ -138,7 +138,8 @@ class OffPolicyBaseTrainer(ABC):
                                             training_exploration_function=training_exploration_function,
                                             task_name=task_name,
                                             training_id=training_id,
-                                            training_exploration_function_name=training_exploration_function_name)
+                                            training_exploration_function_name=training_exploration_function_name,
+                                            num_training_epochs=num_training_epochs)
                 return algo
             except Exception:
                 logging.error(traceback.format_exc())
@@ -314,7 +315,8 @@ class OffPolicyBaseTrainer(ABC):
                         training_exploration_function,
                         task_name : str,
                         training_id : int,
-                        training_exploration_function_name : str
+                        training_exploration_function_name : str,
+                        num_training_epochs : int = None
                         )->PolicyLearningAlgorithm:
         """
         Resumes training that has been previously saved based on the given
@@ -327,6 +329,8 @@ class OffPolicyBaseTrainer(ABC):
         :param str task_name: The task name to be resumed.
         :param int training_id: The training id to be resumed.
         :param str training_exploration_function_name: The training exploration function's name.
+        :param int num_training_epochs: The number of training epochs in total. If None, the \ 
+        number of training epochs used in the loaded training session is used.
         :return PolicyLearningAlgorithm: The algorithm that was trained.
         """
         learning_algorithm, buffer, param_dict = self._load_training_progress(
@@ -337,8 +341,15 @@ class OffPolicyBaseTrainer(ABC):
         print(f"The previous training exploration function name was: {param_dict['training_exploration_function_name']}.")
         print(f"The previous environment name was: {param_dict['environment_name']}.")
 
+        if (num_training_epochs is not None) and param_dict["training_epochs_so_far"] > num_training_epochs:
+            raise Exception("The number of training epochs completed so far is greater than " + 
+                            "the number of steps to be completed...")
+        num_training_epochs = num_training_epochs if num_training_epochs is not None else param_dict["num_training_epochs"]
+
+        print(f"The algorithm will be trained for {num_training_epochs - param_dict['training_epochs_so_far']} more epochs!")
+
         learning_algorithm = self._helper_train(learning_algorithm=learning_algorithm,
-                                                num_training_epochs=param_dict["num_training_epochs"],
+                                                num_training_epochs=num_training_epochs,
                                                 training_epochs_so_far=param_dict["training_epochs_so_far"],
                                                 new_experience_per_epoch=param_dict["new_experience_per_epoch"],
                                                 evaluate_every_N_epochs=param_dict["evaluate_every_N_epochs"],

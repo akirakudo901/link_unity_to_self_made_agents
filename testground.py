@@ -367,3 +367,23 @@ from models.policy_learning_algorithms.soft_actor_critic import SoftActorCritic
 #     print(f"{name}:")
 #     print(param)
 #     print("\n")
+
+from models.policy_learning_algorithms.soft_actor_critic import SoftActorCritic
+
+def verify_correct_layer_size(layer_sizes, layers):
+    for i, l in enumerate(layers):
+        layersz_idx = i // 2
+        if i % 2 == 0:
+            assert l.in_features == layer_sizes[layersz_idx]
+            assert l.out_features == layer_sizes[layersz_idx + 1]
+            print(f"When i = {i}")
+            print(l.in_features)
+            print(layer_sizes[layersz_idx])
+            print(l.out_features)
+            print(layer_sizes[layersz_idx+1])
+
+net1 = SoftActorCritic.create_net(input_size=3, output_size=5, interim_layer_sizes=(8, 32))
+# verify_correct_layer_size(layer_sizes=[3, 8, 32, 5], layers=net1)
+net2 = net1[:-2]
+verify_correct_layer_size(layer_sizes=[3, 8, 32], layers=net2)
+print(net1[:-1])

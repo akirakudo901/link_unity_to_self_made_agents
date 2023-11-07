@@ -21,16 +21,43 @@ from models.trainers.utils.buffer import Buffer
 class SoftActorCritic(PolicyLearningAlgorithm):
     ALGORITHM_NAME = "SAC"
     NUMBER_DTYPE = torch.float32
+
+    @staticmethod
+    def create_net(input_size : int, 
+                   output_size : int, 
+                   interim_layer_sizes : Tuple[int]):
+        """
+        Creates a network model which input and output sizes as well as
+        interim layer sizes are determined. Each layer will be linear
+        followed by ReLU except the very last layer which lacks activation.
+        Returns the generated network as instance of nn.Sequential.
+
+        :param int input_size: The number of dimensions for the input.
+        :param int output_size: The number of dimensions for the output.
+        :param Tuple[int] interim_layer_sizes: The number of neurons for each \
+        interim layer.
+        :return nn.Sequential: The generated model as instance of nn.Sequential.
+        """
+        layer_sizes = [input_size] + list(interim_layer_sizes) + [output_size]
+        layers = []
+        for i, sz in enumerate(layer_sizes[:-1]):
+            layers.append(nn.Linear(sz, layer_sizes[i+1]))
+            if i != len(layer_sizes) - 2:
+                layers.append(nn.ReLU())
+
+        return nn.Sequential(*layers)
     
     class QNet(nn.Module):
         """
         A neural network approximating the q-value function.
         """
         
-        def __init__(self, observation_size : int, action_size : int):
+        def __init__(self, observation_size : int, action_size : int, 
+                     qnet_layer_sizes : Tuple[int] = (64, 64)):
             """
             Initializes one of the Q-function approximating NN which evaluates
-            the value of any state-action pair.
+            the value of any state-action pair. The input & output sizes for 
+            hidden layers can be determined through qnet_layer_sizes.
             
             In the original SAC paper found at this page[https://arxiv.org/pdf/1801.01290.pdf],
             the following are set as found in D. hyperparameters:
@@ -40,20 +67,17 @@ class SoftActorCritic(PolicyLearningAlgorithm):
 
             :param int observation_size: The size of the observation input vector.
             :param int action_size: The size of the action vectors.
+            :param Tuple[int] qnet_layer_sizes: The size of interm layers creating the net. \
+            Defaults to (64, 64).
             """
             super(SoftActorCritic.QNet, self).__init__()
-            fc_out = 64#256
-            self.fc1 = nn.Linear(observation_size + action_size, fc_out)
-            self.fc2 = nn.Linear(fc_out, fc_out)
 
-            self.linear_relu_stack = nn.Sequential(
-                self.fc1,
-                nn.ReLU(),
-                self.fc2,
-                nn.ReLU()
-            )
+            self.linear_relu_stack = SoftActorCritic.create_net(
+                input_size=observation_size + action_size,
+                output_size=1,
+                interim_layer_sizes=qnet_layer_sizes
+                )
 
-            self.last_fc = nn.Linear(fc_out, 1)
         
         def forward(self, obs : torch.tensor, actions : torch.tensor):
             """
@@ -69,7 +93,7 @@ class SoftActorCritic(PolicyLearningAlgorithm):
             inp = torch.cat((obs, actions), dim=1)
             # passing it through the NN
             x = self.linear_relu_stack(inp)
-            out = torch.squeeze(self.last_fc(x), dim=1)
+            out = torch.squeeze(x, dim=1)
             return out
 
     class Policy(nn.Module):
@@ -80,7 +104,9 @@ class SoftActorCritic(PolicyLearningAlgorithm):
         reparameterization trick, as proposed in the original paper.
         """
 
-        def __init__(self, observation_size : int, action_size : int, action_ranges : Tuple[Tuple[float]]):
+        def __init__(self, observation_size : int, action_size : int, 
+                     action_ranges : Tuple[Tuple[float]],
+                     policy_layer_sizes : Tuple[int] = (64, 64)):
             """
             Implements the neural network which maps observations to two vectors
             determining the corresponding distribution for the policy:
@@ -98,6 +124,8 @@ class SoftActorCritic(PolicyLearningAlgorithm):
             :param int action_size: The size of the action vectors.
             :param Tuple[Tuple[int]] action_ranges: The high and low ranges of possible
             values in the action space, as ith value being (low, high).
+            :param Tuple[int] policy_layer_sizes: The size of interm layers creating the net. \
+            Defaults to (64, 64).
             """
             super(SoftActorCritic.Policy, self).__init__()
             # of shape [act_dim]
@@ -105,19 +133,14 @@ class SoftActorCritic(PolicyLearningAlgorithm):
             # of shape [act_dim]
             self.action_multiplier = torch.tensor([(range[1] - range[0]) / 2 for range in action_ranges]).to(SoftActorCritic.NUMBER_DTYPE)
             
-            fc_out = 64#256
-            self.fc1 = nn.Linear(observation_size, fc_out)
-            self.fc2 = nn.Linear(fc_out, fc_out)
-            
-            self.linear_relu_stack = nn.Sequential(
-                self.fc1,
-                nn.ReLU(),
-                self.fc2,
-                nn.ReLU()
-            )
+            self.linear_relu_stack = SoftActorCritic.create_net(
+                input_size=observation_size,
+                output_size=1,
+                interim_layer_sizes=policy_layer_sizes
+            )[:-1]
 
-            self.mean_layer = nn.Linear(fc_out, action_size) #initial implementation
-            self.sd_layer = nn.Linear(fc_out, action_size)
+            self.mean_layer = nn.Linear(policy_layer_sizes[-1], action_size) #initial implementation
+            self.sd_layer = nn.Linear(policy_layer_sizes[-1], action_size)
 
         def forward(self,  #new
                     obs : torch.tensor,
@@ -362,6 +385,8 @@ class SoftActorCritic(PolicyLearningAlgorithm):
                  obs_dim_size : int = None,
                  act_dim_size : int = None,
                  act_ranges : Tuple[Tuple[float]] = None,
+                 qnet_layer_sizes : Tuple[int] = (64, 64),
+                 policy_layer_sizes : Tuple[int] = (64, 64),
                  env = None
                  ):
         if (obs_dim_size == None or act_dim_size == None or act_ranges == None) and env == None:
@@ -379,15 +404,17 @@ class SoftActorCritic(PolicyLearningAlgorithm):
         self.pol_eval_batch_size = pol_eval_batch_size
         self.pol_imp_batch_size = pol_imp_batch_size
         self.update_qnet_every_N_gradient_steps = update_qnet_every_N_gradient_steps
+        self.qnet_layer_sizes = qnet_layer_sizes
+        self.policy_layer_sizes = policy_layer_sizes
 
         self.qnet_update_counter = 0
 
         # two q-functions are used to approximate values during training
-        self.qnet1 = SoftActorCritic.QNet(observation_size=self.obs_dim_size, action_size=self.act_dim_size).to(self.device)
-        self.qnet2 = SoftActorCritic.QNet(observation_size=self.obs_dim_size, action_size=self.act_dim_size).to(self.device)
+        self.qnet1 = SoftActorCritic.QNet(self.obs_dim_size, self.act_dim_size, qnet_layer_sizes).to(self.device)
+        self.qnet2 = SoftActorCritic.QNet(self.obs_dim_size, self.act_dim_size, qnet_layer_sizes).to(self.device)
         # two target networks are updated less (e.g. every 1000 steps) to compute targets for q-function update
-        self.qnet1_tar = SoftActorCritic.QNet(observation_size=self.obs_dim_size, action_size=self.act_dim_size).to(self.device)
-        self.qnet2_tar = SoftActorCritic.QNet(observation_size=self.obs_dim_size, action_size=self.act_dim_size).to(self.device)
+        self.qnet1_tar = SoftActorCritic.QNet(self.obs_dim_size, self.act_dim_size, qnet_layer_sizes).to(self.device)
+        self.qnet2_tar = SoftActorCritic.QNet(self.obs_dim_size, self.act_dim_size, qnet_layer_sizes).to(self.device)
         # transfer the weights to sync
         self._update_target_networks(hard_update=True)
         # set up the optimizers
@@ -396,7 +423,8 @@ class SoftActorCritic(PolicyLearningAlgorithm):
         
         # initialize policy 
         self.policy = SoftActorCritic.Policy(
-            observation_size=self.obs_dim_size, action_size=self.act_dim_size, action_ranges=self.act_ranges
+            observation_size=self.obs_dim_size, action_size=self.act_dim_size, action_ranges=self.act_ranges,
+            policy_layer_sizes=policy_layer_sizes
             ).to(self.device)
         self.optim_policy = optim.Adam(self.policy.parameters(), lr=policy_learning_rate)
 
@@ -893,6 +921,8 @@ class SoftActorCritic(PolicyLearningAlgorithm):
         algorithm_param["qnet1_loss_history"] = self.qnet1_loss_history
         algorithm_param["qnet2_loss_history"] = self.qnet2_loss_history
         algorithm_param["policy_loss_history"] = self.policy_loss_history
+        algorithm_param["qnet_layer_sizes"]  = self.qnet_layer_sizes
+        algorithm_param["policy_layer_sizes"]  = self.policy_layer_sizes
         return algorithm_param
     
     def load(self, path : str = None):
@@ -934,7 +964,10 @@ class SoftActorCritic(PolicyLearningAlgorithm):
                       update_qnet_every_N_gradient_steps=dict["update_qnet_every_N_gradient_steps"],
                       obs_dim_size=self.obs_dim_size,
                       act_dim_size=self.act_dim_size,
-                      act_ranges=self.act_ranges)
+                      act_ranges=self.act_ranges, 
+                      qnet_layer_sizes=dict["qnet_layer_sizes"],
+                      policy_layer_sizes=dict["policy_layer_sizes"]
+                      )
         self.qnet_update_counter = dict["qnet_update_counter"]
         self.qnet1_loss_history  = dict["qnet1_loss_history"]
         self.qnet2_loss_history  = dict["qnet2_loss_history"]

@@ -3,6 +3,7 @@ Base abstract class for whatever policy learning algorithm we use.
 """
 
 from abc import ABC, abstractmethod
+from copy import deepcopy
 from datetime import datetime
 import logging
 from math import log2
@@ -421,3 +422,53 @@ def no_exploration(actions : Union[np.ndarray, torch.tensor], env):
     else:
         raise Exception("Value passed as action to no_exploration was of type ", type(actions), 
                         "but should be either a torch.tensor or np.ndarray to successfully work.") 
+
+# USEFUL FOR GENERATING SETS OF HYPERPARAMETERS
+def generate_parameters(default_parameters : Dict, **kwargs):
+    """
+    Generate new parameters which are combinations of the
+    given keyword arguments. The keyword arguments can 
+    either be:
+    - a single value to be put in all parameters
+    - a list of all parameters you want to try
+
+    e.g. kwargs = { "learning_rate" : 1e-2, "discount_rate" : [0.99, 0.95, 0.90] }
+
+    :param Dict default_parameters: The dictionary holding all \
+    default parameters for the parameter sets.
+    :return Dict returned: A dictionary holding all generated parameter dicts \
+    paired with auto-generated names attributed to them.
+    """
+
+    def new_dict_from_old(old_name, old_dict, key, val):
+        if old_name == "default":
+            new_name = f"{key}_{str(val)}"
+        else:
+            new_name = name + f"_{key}_{str(val)}"
+        old_dict[key] = val
+        return new_name, old_dict
+
+    returned = {"default" : default_parameters}
+    for key, values in kwargs.items():
+        if type(values) != type([]):
+            for d in returned.values(): d[key] = values
+        elif type(values) == type([]) and len(values) == 0:
+            pass
+        elif type(values) == type([]):
+            new_dicts = {}
+            for name, d in returned.items():
+                new_name, new_dict = new_dict_from_old(old_name=name, 
+                                                       old_dict=d, 
+                                                       key=key, 
+                                                       val=values[0])
+                new_dicts[new_name] = new_dict 
+                
+                for v in values[1:]:
+                    new_d = deepcopy(d)
+                    new_name, new_dict = new_dict_from_old(old_name=name,
+                                                           old_dict=new_d,
+                                                           key=key,
+                                                           val=v)
+                    new_dicts[new_name] = new_dict
+            returned = new_dicts
+    return returned

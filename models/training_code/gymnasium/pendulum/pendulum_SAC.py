@@ -73,7 +73,7 @@ def train_SAC_on_pendulum(parameter_name : str):
         save_after_training=param["save_after_training"],
         task_name=TASK_NAME + parameter_name + str(param["temperature"]),
         training_id=param["training_id"],
-        render_evaluation=True
+        render_evaluation=False
         )
 
     return l_a
@@ -85,4 +85,4 @@ def train_SAC_on_pendulum(parameter_name : str):
 #     parameters["play_around"]["temperature"] = temp
 #     train_SAC_on_pendulum(parameter_name="play_around")
 
-train_SAC_on_pendulum(parameter_name="play_around")
+train_SAC_on_pendulum(parameter_name="online_example")
