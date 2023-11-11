@@ -4,8 +4,8 @@ Implementation of SAC training with the bipedal walker environment with gym.
 
 import gymnasium
 
-from models.policy_learning_algorithms.policy_learning_algorithm import generate_name_from_parameter_dict, generate_parameters, no_exploration
-from models.policy_learning_algorithms.soft_actor_critic import SoftActorCritic, uniform_random_sampling_wrapper
+from models.policy_learning_algorithms.policy_learning_algorithm import generate_name_from_parameter_dict, generate_parameters
+from models.policy_learning_algorithms.soft_actor_critic import SoftActorCritic, uniform_random_sampling_wrapper, no_exploration_wrapper
 from models.trainers.gym_base_trainer import GymOffPolicyBaseTrainer
 
 # create the environment and determine specs about it
