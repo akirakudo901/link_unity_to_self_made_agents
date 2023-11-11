@@ -312,7 +312,11 @@ class OffPolicyBaseTrainer(ABC):
                 """
                 try:
                     new_dir_path = os.path.join("images", f"{task_name}_{training_id}_folder")
-                    if not os.path.exists(new_dir_path): os.mkdir(new_dir_path)
+                    # build the folder up to the given path as needed
+                    dirs_to_file = os.path.normpath(new_dir_path).split(os.path.sep)
+                    for i in range(len(dirs_to_file)):
+                        path_up_to_i = os.path.join(*dirs_to_file[:i+1])
+                        if not os.path.exists(path_up_to_i): os.mkdir(path_up_to_i)
                     plt.clf()
                     plt.title(f"{task_name} ID={training_id} Cumulative reward")
                     plt.xlabel("Epochs")
@@ -437,7 +441,12 @@ class OffPolicyBaseTrainer(ABC):
         """
         new_dir_path = os.path.join(OffPolicyBaseTrainer.PROGRESS_SAVING_DIR,
                                     f"{task_name}_{training_id}_folder")
-        if not os.path.exists(new_dir_path): os.mkdir(new_dir_path)
+        # will generate the directory tree up to the last folder as needed
+        dirs_to_file = os.path.normpath(new_dir_path).split(os.path.sep)
+        for i in range(len(dirs_to_file)):
+            path_up_to_i = os.path.join(*dirs_to_file[:i+1])
+            if not os.path.exists(path_up_to_i): os.mkdir(path_up_to_i)
+        
         # save learning state, comprising of:
         param_dict = {
             # 1/Elements given as parameters to train:

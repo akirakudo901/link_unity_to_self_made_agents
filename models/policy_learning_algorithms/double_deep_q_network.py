@@ -206,7 +206,7 @@ class DoubleDeepQNetwork(PolicyLearningAlgorithm):
         save_dir = PolicyLearningAlgorithm.get_saving_directory_name(
             task_name=f"{task_name}_{training_id}",
             algorithm_name=DoubleDeepQNetwork.ALGORITHM_NAME,
-            save_dir=f"{dir}/{task_name}_{training_id}"
+            save_dir=os.path.join(dir, f"{task_name}_{training_id}")
             )
         save_dir += ".pth"
         os.remove(save_dir)

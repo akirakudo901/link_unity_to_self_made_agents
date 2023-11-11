@@ -891,7 +891,11 @@ class SoftActorCritic(PolicyLearningAlgorithm):
             save_dir=save_dir
             )
                 
-        if not os.path.exists(save_dir): os.mkdir(save_dir)
+        # build the folders till save_dir as needed
+        dirs_to_file = os.path.normpath(save_dir).split(os.path.sep)
+        for i in range(len(dirs_to_file)):
+            path_up_to_i = os.path.join(*dirs_to_file[:i+1])
+            if not os.path.exists(path_up_to_i): os.mkdir(path_up_to_i)
         suffix =  ".pth"
         try: 
             torch.save(self.policy.state_dict(),    save_dir + "/policy"    + suffix)
@@ -982,7 +986,7 @@ class SoftActorCritic(PolicyLearningAlgorithm):
             )
                 
         if os.path.exists(save_dir):
-            for file in os.listdir(save_dir): os.remove(f"{save_dir}/{file}")
+            for file in os.listdir(save_dir): os.remove(os.path.join(save_dir, file))
             os.rmdir(save_dir)
     
     def show_loss_history(self, task_name : str, save_figure : bool=True, save_dir : str=None):

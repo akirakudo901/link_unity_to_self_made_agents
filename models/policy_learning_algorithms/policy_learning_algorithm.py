@@ -286,7 +286,7 @@ class PolicyLearningAlgorithm(ABC):
         :param int training_id: An integer specifying training id.
         """
         self._delete_saved_algorithms(task_name=task_name, training_id=training_id)
-        os.remove(f"{dir}/{task_name}_{training_id}_Algorithm_Param.yaml")
+        os.remove(os.path.join(dir, f"{task_name}_{training_id}_Algorithm_Param.yaml"))
 
     ################
     # Static methods
@@ -379,12 +379,16 @@ class PolicyLearningAlgorithm(ABC):
             plt.ylabel("Loss")
             if y_range != None: plt.ylim(y_range)
             plt.plot(range(0, len(h)), h)
-            if save_figure: plt.savefig(f"{save_dir}/{fig_name}")
+            if save_figure: plt.savefig(os.path.join(save_dir, fig_name))
             plt.show()
 
         if save_dir == None: save_dir = "."
-        if not os.path.exists(save_dir): os.mkdir(save_dir)
-
+        # build the folders till save_dir as needed
+        dirs_to_file = os.path.normpath(save_dir).split(os.path.sep)
+        for i in range(len(dirs_to_file)):
+            path_up_to_i = os.path.join(*dirs_to_file[:i+1])
+            if not os.path.exists(path_up_to_i): os.mkdir(path_up_to_i)
+        
         # if difference is too big, create log, twice_std and
         minimum = min(history)
         if (max(history) - minimum) >= 200:

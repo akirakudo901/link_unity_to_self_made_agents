@@ -464,3 +464,13 @@ import torch
 # unscaled_high, unscaled_low = env.observation_space.high, env.observation_space.low
 # print(unscaled_high)
 # print(unscaled_low)
+
+import os
+new_dir_path = os.path.join("trial1", "trial2", "trial3", "trial4", "super")
+
+
+dirs_to_file = os.path.normpath(new_dir_path).split(os.path.sep)
+for i in range(len(dirs_to_file)):
+    path_up_to_i = os.path.join(*dirs_to_file[:i+1])
+    if not os.path.exists(path_up_to_i):
+        os.mkdir(path_up_to_i)

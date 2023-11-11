@@ -26,12 +26,12 @@ parameters = {
         "pol_eval_batch_size" : 64,
         "pol_imp_batch_size" : 64,
         "update_qnet_every_N_gradient_steps" : 1,
-        "num_training_steps" : MAX_EPISODE_STEPS * 100,
+        "num_training_steps" : MAX_EPISODE_STEPS * 1,
         "num_init_exp" : 0,
         "num_new_exp" : 1,
         "evaluate_every_N_epochs" : 200,
         "buffer_size" : int(1e6),
-        "save_after_training" : False,
+        "save_after_training" : True,
         "training_id" : 10
     }
 }
