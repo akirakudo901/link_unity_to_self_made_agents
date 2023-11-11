@@ -91,21 +91,6 @@ parameters = {
         "training_id" : 0
     },
 }
-
-import torch
-import numpy as np
-def no_exploration_wrapper(learning_algorithm):
-
-    def no_exploration(obs):
-        if type(obs) == type(np.array([0])):
-            obs = torch.from_numpy(obs)
-        else:
-            raise Exception("Value passed as action to no_exploration was of type ", type(obs), 
-                            "but should be either a torch.tensor or np.ndarray to successfully work.") 
-        action = learning_algorithm(torch.unsqueeze(obs.to(learning_algorithm.device), dim=0), 
-                                  deterministic=False)
-        return np.squeeze(action, axis=0)
-    return no_exploration
         
 def train_SAC_on_bipedal_walker(parameter_name : str, params_dict = parameters):
 

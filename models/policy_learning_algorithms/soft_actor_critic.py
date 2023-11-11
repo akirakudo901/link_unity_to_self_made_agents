@@ -14,6 +14,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.distributions.normal import Normal
 from torch.distributions.independent import Independent
+import wandb
 
 from models.policy_learning_algorithms.policy_learning_algorithm import PolicyLearningAlgorithm
 from models.trainers.utils.buffer import Buffer
@@ -614,6 +615,7 @@ class SoftActorCritic(PolicyLearningAlgorithm):
         clip_gradient(self.qnet1)
         self.optim_qnet1.step()
         self.qnet1_loss_history.append(loss1.item())
+        if wandb.run is not None: wandb.log({"QNet1 Loss" : loss1.item()})
 
         predictions2 = self.qnet2(obs=observations, actions=actions) #[batch]
         loss2 = criterion(predictions2, targets) #[batch]
@@ -623,6 +625,8 @@ class SoftActorCritic(PolicyLearningAlgorithm):
         clip_gradient(self.qnet2)
         self.optim_qnet2.step()
         self.qnet2_loss_history.append(loss2.item())
+        if wandb.run is not None: wandb.log({"QNet2 Loss" : loss2.item()})
+
 
         # increment the update counter and update target networks every N gradient steps
         self.qnet_update_counter += 1
@@ -672,6 +676,10 @@ class SoftActorCritic(PolicyLearningAlgorithm):
         clip_gradient(self.policy)
         self.optim_policy.step()
         self.policy_loss_history.append(loss.item())
+        if wandb.run is not None: 
+            wandb.log({"Policy Loss" : loss.item()})
+            # also log the total loss for this single update step
+            wandb.log({"Total Loss" : loss1.item() + loss2.item() + loss.item()})
 
         for param in self.qnet1.parameters():
             param.requires_grad = True
@@ -1011,6 +1019,47 @@ class SoftActorCritic(PolicyLearningAlgorithm):
 # OTHER USEFUL FUNCTIONS
 
 # EXPLORATION FUNCTIONS
+def no_exploration_wrapper(learning_algorithm : SoftActorCritic):
+    """
+    Returns an exploration function which samples actions from the 
+    current policy in a stochastic way.
+    To be passed as argument to trainers.
+    :param SoftActorCritic learning_algorithm: The learning algorithm used to \
+    sample actions.
+    :return uniform_random_sampling: The function that returns the actions.
+    """
+
+    def no_exploration(obs : Union[torch.tensor, np.ndarray]):
+        """
+        Takes a raw observation from the environment, returning the 
+        corresponding actions obtained from SAC where inference is stochastic.
+
+        :param Union[torch.tensor, np.ndarray] obs: An observation object, either \
+        of shape [obs_dim] or [batch_dim, obs_dim]. 
+        :raises Exception: If obs isn't either of torch.tensor or np.ndarray, raise \
+        an exception.
+        :return np.ndarray: Returns the obtained action, with or without the batch \
+        dimension depending on the input. 
+        """
+        if type(obs) == type(np.array([0])):
+            obs = torch.from_numpy(obs)
+        else:
+            raise Exception("Value passed as action to no_exploration was of type ", type(obs), 
+                            "but should be either a torch.tensor or np.ndarray to successfully work.")
+        # if there is the batch dimension
+        if len(obs.shape) == 2:
+            return learning_algorithm(obs.to(learning_algorithm.device), deterministic=False)
+        # if there is no batch dimension
+        elif len(obs.shape) == 1:
+            action = learning_algorithm(torch.unsqueeze(obs.to(learning_algorithm.device), dim=0), 
+                                        deterministic=False)
+            return np.squeeze(action, axis=0)
+        else: 
+            raise Exception("Given observation not of shape [batch_dim, obs_dim] or [obs_dim]...")
+        
+    return no_exploration
+
+
 def uniform_random_sampling_wrapper(learning_algorithm : SoftActorCritic):
     """
     Returns an exploration function which uniform randomly samples
@@ -1020,10 +1069,26 @@ def uniform_random_sampling_wrapper(learning_algorithm : SoftActorCritic):
     to get data on act_dim_size, action_multipler and action_avgs.
     :return uniform_random_sampling: The function that returns the actions.
     """
-    def uniform_random_sampling(actions, env):
-        # initially sample actions from a uniform random distribution of the right
-        # range, in order to extract good reward signals
-        action_zero_to_one = torch.rand(size=(learning_algorithm.act_dim_size,)).cpu()
+    def uniform_random_sampling(obs : Union[torch.tensor, np.ndarray]):
+        """
+        Returns an action uniform randomly sampled from possible actions in the world.
+        :param Union[torch.tensor, np.ndarray] obs: An observation object, either \
+        of shape [obs_dim] or [batch_dim, obs_dim].
+        :return np.ndarray: Returns the obtained action, with or without the batch \
+        dimension depending on the input. 
+        """
+        # if there is the batch dimension
+        if len(obs.shape) == 2:
+            action_zero_to_one = torch.rand(
+                size=(obs.shape[0], #batch size
+                      learning_algorithm.act_dim_size)
+                ).cpu()
+        # if there is no batch dimension
+        elif len(obs.shape) == 1:
+            action_zero_to_one = torch.rand(size=(learning_algorithm.act_dim_size,)).cpu()
+        else: 
+            raise Exception("Given observation not of shape [batch_dim, obs_dim] or [obs_dim]...")
+        
         action_minus_one_to_one = action_zero_to_one * 2.0 - 1.0
         adjusted_actions = (action_minus_one_to_one * 
                             learning_algorithm.policy.action_multiplier.detach().cpu() + 

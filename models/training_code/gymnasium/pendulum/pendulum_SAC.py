@@ -8,8 +8,7 @@ If we can't solve this, there is an error somewhere in the code to be fixed.
 
 import gymnasium
 
-from models.policy_learning_algorithms.policy_learning_algorithm import no_exploration
-from models.policy_learning_algorithms.soft_actor_critic import SoftActorCritic, uniform_random_sampling_wrapper
+from models.policy_learning_algorithms.soft_actor_critic import SoftActorCritic, no_exploration_wrapper, uniform_random_sampling_wrapper
 from models.trainers.gym_base_trainer import GymOffPolicyBaseTrainer
 
 # create the environment and determine specs about it
@@ -33,7 +32,7 @@ parameters = {
         "evaluate_every_N_epochs" : 200,
         "buffer_size" : int(1e6),
         "save_after_training" : False,
-        "training_id" : 7
+        "training_id" : 10
     }
 }
 
@@ -66,8 +65,8 @@ def train_SAC_on_pendulum(parameter_name : str):
         num_initial_experiences=param["num_init_exp"],
         evaluate_every_N_epochs=param["evaluate_every_N_epochs"],
         evaluate_N_samples=1,
-        initial_exploration_function=uniform_random_sampling_wrapper(learning_algorithm),
-        training_exploration_function=no_exploration,
+        initial_exploration_function=no_exploration_wrapper(learning_algorithm),
+        training_exploration_function=no_exploration_wrapper(learning_algorithm),
         training_exploration_function_name="no_exploration",
         save_after_training=param["save_after_training"],
         task_name=TASK_NAME + parameter_name + str(param["temperature"]),

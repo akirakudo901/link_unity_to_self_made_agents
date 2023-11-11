@@ -305,21 +305,28 @@ class OffPolicyBaseTrainer(ABC):
             print(f"Execution time for this session: {end_time - start_time} sec.") #float fractional seconds?
             print(f"Execution time for the entire training so far: {end_time - start_time + time_so_far} sec.")
 
-            # Show the training graph
-            try:
-                new_dir_path = os.path.join("images", f"{task_name}_{training_id}_folder")
-                if not os.path.exists(new_dir_path): os.mkdir(new_dir_path)
-                plt.clf()
-                plt.title(f"{task_name} ID={training_id} Cumulative reward")
-                plt.xlabel("Epochs")
-                plt.ylabel("Cumulative Reward")
-                plt.plot(range(0, len(cumulative_rewards)*evaluate_every_N_epochs, evaluate_every_N_epochs), cumulative_rewards)
-                plt.savefig(os.path.join(new_dir_path, f"{task_name}_{training_id}_cumulative_reward_fig.png"))
-                plt.show()
-                learning_algorithm.show_loss_history(task_name=task_name, save_figure=True,
-                                                     save_dir=new_dir_path)
-            except Exception:
-                logging.error(traceback.format_exc())
+            def show_training_graphs():
+                """
+                Show and store training graphs - the old way to do it. 
+                Hopeful to replace this with wandb.
+                """
+                try:
+                    new_dir_path = os.path.join("images", f"{task_name}_{training_id}_folder")
+                    if not os.path.exists(new_dir_path): os.mkdir(new_dir_path)
+                    plt.clf()
+                    plt.title(f"{task_name} ID={training_id} Cumulative reward")
+                    plt.xlabel("Epochs")
+                    plt.ylabel("Cumulative Reward")
+                    plt.plot(range(0, len(cumulative_rewards)*evaluate_every_N_epochs, evaluate_every_N_epochs), cumulative_rewards)
+                    plt.savefig(os.path.join(new_dir_path, f"{task_name}_{training_id}_cumulative_reward_fig.png"))
+                    plt.show()
+                    learning_algorithm.show_loss_history(task_name=task_name, save_figure=True,
+                                                        save_dir=new_dir_path)
+                except Exception:
+                    logging.error(traceback.format_exc())
+
+            # call below if we want to store info locally, the old way
+            # show_training_graphs()
             
             wandb.finish()
     

@@ -9,6 +9,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import wandb
 
 from models.trainers.utils.buffer import NdArrayBuffer
 from models.policy_learning_algorithms.policy_learning_algorithm import PolicyLearningAlgorithm
@@ -184,6 +185,8 @@ class DoubleDeepQNetwork(PolicyLearningAlgorithm):
         # update the target dnn appropriately after one update
         self._update_target()
         self.loss_history.append(loss.item())
+        # log the result to wandb if we are using it
+        if wandb.run is not None: wandb.log({"QNet Loss" : loss.item()})
             
     def _update_target(self):
         # do hard update

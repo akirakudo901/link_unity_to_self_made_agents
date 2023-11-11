@@ -429,25 +429,43 @@ class PolicyLearningAlgorithm(ABC):
 # OTHER USEFUL FUNCTIONS
 
 # EXPLORATION FUNCTIONS
-def no_exploration(actions : Union[np.ndarray, torch.tensor], env):
+def no_exploration_wrapper(learning_algorithm : PolicyLearningAlgorithm):
     """
-    An exploration function that takes an action and return it while
-    attempting to convert it into a np.ndarray.
-    To be passed to trainers as arguments.
+    Returns an exploration function which samples actions from the current policy.
+    To be passed as argument to trainers.
+    :param PolicyLearningAlgorithm learning_algorithm: The learning algorithm used to \
+    sample actions.
+    :return uniform_random_sampling: The function that returns the actions.
+    """
 
-    :param np.ndarray or torch.tensor actions: The action to be passed.
-    :param env: An environment to be passed - is a placeholder.
-    :raises Exception: Raises an exception if actions is of neither type specified above.
-    :return np.ndarray actions: Returns an np.ndarray version of the action passed.
-    """
-    # since exploration is inherent in SAC, we don't need epsilon to do anything
-    if type(actions) == type(torch.tensor([0])):
-        return actions.detach().numpy()
-    elif type(actions) == type(np.array([0])):
-        return actions
-    else:
-        raise Exception("Value passed as action to no_exploration was of type ", type(actions), 
-                        "but should be either a torch.tensor or np.ndarray to successfully work.") 
+    def no_exploration(obs : Union[torch.tensor, np.ndarray]):
+        """
+        Takes a raw observation from the environment, returning the 
+        corresponding actions obtained from the policy learning algorithm.
+
+        :param Union[torch.tensor, np.ndarray] obs: An observation object, either \
+        of shape [obs_dim] or [batch_dim, obs_dim]. 
+        :raises Exception: If obs isn't either of torch.tensor or np.ndarray, raise \
+        an exception.
+        :return np.ndarray: Returns the obtained action, with or without the batch \
+        dimension depending on the input. 
+        """
+        if type(obs) == type(np.array([0])):
+            obs = torch.from_numpy(obs)
+        else:
+            raise Exception("Value passed as action to no_exploration was of type ", type(obs), 
+                            "but should be either a torch.tensor or np.ndarray to successfully work.")
+        # if there is the batch dimension
+        if len(obs.shape) == 2:
+            return learning_algorithm(obs.to(learning_algorithm.device))
+        # if there is no batch dimension
+        elif len(obs.shape) == 1:
+            action = learning_algorithm(torch.unsqueeze(obs.to(learning_algorithm.device), dim=0))
+            return np.squeeze(action, axis=0)
+        else: 
+            raise Exception("Given observation not of shape [batch_dim, obs_dim] or [obs_dim]...")
+        
+    return no_exploration
 
 # USEFUL FOR GENERATING SETS OF HYPERPARAMETERS
 def generate_parameters(default_parameters : Dict, default_name : str, **kwargs):
