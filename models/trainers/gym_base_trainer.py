@@ -10,6 +10,7 @@ by making a trainer which inherits from it.
 import gymnasium
 import numpy as np
 import wandb
+import torch #REMOVE
 
 from models.trainers.base_trainer import OffPolicyBaseTrainer
 from models.trainers.utils.buffer import Buffer
@@ -82,13 +83,7 @@ class GymOffPolicyBaseTrainer(OffPolicyBaseTrainer):
         if type(self.last_observation) == type(None):
             self.last_observation, _ = self.env.reset()
 
-        action = exploration_function(
-            np.squeeze( #adjust, as output from learning_algo always has a batch dimension
-                learning_algorithm(np.expand_dims(self.last_observation.copy(), 0)), 
-                axis=0
-                ), 
-                self.env
-            )
+        action = exploration_function(self.last_observation.copy())
         
         new_observation, reward, terminated, truncated, _ = self.env.step(action.copy())
         self.run_cumulative_reward += reward
@@ -108,6 +103,66 @@ class GymOffPolicyBaseTrainer(OffPolicyBaseTrainer):
             self.reset_trainer()
 
         return 1 #for the above code, we only produce one experience per step
+    
+    # def generate_experience( #OLD TO BE SAVED
+    #         self,
+    #         buffer : Buffer,
+    #         exploration_function, 
+    #         learning_algorithm : PolicyLearningAlgorithm
+    #         ) -> Experience:
+    #     """
+    #     Executes a single step in the environment to generate experiences,
+    #     and adds them to a passed buffer.
+    #     The experience involves some exploration (vs. exploitation) which behavior 
+    #     is determined by exploration_function.
+    #     Also returns the number of newly generated experiences.
+        
+    #     :param Buffer buffer: The buffer to which we add generated experience.
+    #     :param exploration_function: A function which controls how exploration is handled 
+    #     during collection of experiences.
+    #     :param PolicyLearningAlgorithm learning_algorithm: The algorithm which provides policy, 
+    #     evaluating actions given states per batches.
+    #     :returns int: The number of newly generated experiences.
+    #     """
+
+    #     # if self.last_action is None (beginning of training), we reset env and take a step first
+    #     if type(self.last_observation) == type(None):
+    #         self.last_observation, _ = self.env.reset()
+
+    #     action = exploration_function(
+    #         np.squeeze( #adjust, as output from learning_algo always has a batch dimension
+    #             # learning_algorithm(np.expand_dims(self.last_observation.copy(), 0)), s
+    #             # TOFIX
+    #             # MAYBE LATER, WE COULD CHANGE EXPLORATION_FUNCTION ITSELF SUCH THAT ITSELF
+    #             # IS DEFINED BY THE CODER
+    #             # SINCE THIS FORMAT DOESN'T TRULY OFFER MUCH FLEXIBILITY
+    #             learning_algorithm.policy.forward(
+    #                 torch.from_numpy(np.expand_dims(self.last_observation.copy(), 0)),
+    #                 num_samples=1,
+    #                 deterministic=False)[0], 
+    #             axis=0
+    #             ), 
+    #             self.env
+    #         )
+        
+    #     new_observation, reward, terminated, truncated, _ = self.env.step(action.copy())
+    #     self.run_cumulative_reward += reward
+            
+    #     # generate the new experience based on the last stored info and the new info,
+    #     # adding it to the passed buffer
+    #     buffer.append_experience(obs=self.last_observation.copy(), act=action.copy(), 
+    #                              rew=reward, don=terminated, next_obs=new_observation.copy())
+    #     # update last observation
+    #     self.last_observation = new_observation
+
+    #     # if the environment has ended
+    #     if terminated or truncated:
+    #         # reset the state of this trainer (not the environment!)
+    #         if wandb.run is not None:
+    #             wandb.log({"Run Cumulative Reward" : self.run_cumulative_reward})
+    #         self.reset_trainer()
+
+    #     return 1 #for the above code, we only produce one experience per step
     
     def train(
             self,

@@ -37,7 +37,6 @@ parameters = {
     }
 }
 
-
 def train_SAC_on_pendulum(parameter_name : str):
 
     print(f"Training: {parameter_name}")

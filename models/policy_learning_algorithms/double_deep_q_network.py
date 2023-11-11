@@ -21,29 +21,16 @@ class DoubleDeepQNetwork(PolicyLearningAlgorithm):
         def __init__(self, 
                      input_size : int, 
                      output_size : int, 
-                     dqn_layer_sizes : Tuple[int] = None):
+                     dqn_layer_sizes : Tuple[int] = (8, 16)):
             # Initializes a new DNN.
             super(DoubleDeepQNetwork.DNN, self).__init__()
 
-            if dqn_layer_sizes != None:
-                dqn_layer_sizes = [input_size] + list(dqn_layer_sizes) + [output_size]
-                layers = []
-                for i, sz in enumerate(dqn_layer_sizes[:-1]):
-                    layers.append(nn.Linear(sz, dqn_layer_sizes[i+1]))
-                    if i != len(dqn_layer_sizes) - 2:
-                        layers.append(nn.ReLU())
-                
-                self.fc_relu_stack = nn.Sequential(*layers)
+            self.fc_relu_stack = PolicyLearningAlgorithm.create_net(
+                input_size=input_size,
+                output_size=output_size,
+                interim_layer_sizes=dqn_layer_sizes
+            )
             
-            else:
-                self.fc_relu_stack = nn.Sequential(
-                    nn.Linear(input_size, 8),
-                    nn.ReLU(),
-                    nn.Linear(8, 16),
-                    nn.ReLU(),
-                    nn.Linear(16, output_size),
-                )
-
         def forward(self, x):
             x = self.fc_relu_stack(x)
             return x

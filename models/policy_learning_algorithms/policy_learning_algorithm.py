@@ -16,12 +16,38 @@ import matplotlib.pyplot as plt
 import numpy as np
 import yaml
 import torch
+import torch.nn as nn
 
 from models.trainers.utils.buffer import Buffer
 
 class PolicyLearningAlgorithm(ABC):
 
     ALGORITHM_SAVE_DIR = "trained_algorithms"
+
+    @staticmethod
+    def create_net(input_size : int, 
+                   output_size : int, 
+                   interim_layer_sizes : Tuple[int]):
+        """
+        Creates a network model which input and output sizes as well as
+        interim layer sizes are determined. Each layer will be linear
+        followed by ReLU except the very last layer which lacks activation.
+        Returns the generated network as instance of nn.Sequential.
+
+        :param int input_size: The number of dimensions for the input.
+        :param int output_size: The number of dimensions for the output.
+        :param Tuple[int] interim_layer_sizes: The number of neurons for each \
+        interim layer.
+        :return nn.Sequential: The generated model as instance of nn.Sequential.
+        """
+        layer_sizes = [input_size] + list(interim_layer_sizes) + [output_size]
+        layers = []
+        for i, sz in enumerate(layer_sizes[:-1]):
+            layers.append(nn.Linear(sz, layer_sizes[i+1]))
+            if i != len(layer_sizes) - 2:
+                layers.append(nn.ReLU())
+
+        return nn.Sequential(*layers)
 
     @abstractmethod
     def __init__(self, 
@@ -416,7 +442,7 @@ def no_exploration(actions : Union[np.ndarray, torch.tensor], env):
     """
     # since exploration is inherent in SAC, we don't need epsilon to do anything
     if type(actions) == type(torch.tensor([0])):
-        return actions.numpy()
+        return actions.detach().numpy()
     elif type(actions) == type(np.array([0])):
         return actions
     else:
@@ -424,7 +450,7 @@ def no_exploration(actions : Union[np.ndarray, torch.tensor], env):
                         "but should be either a torch.tensor or np.ndarray to successfully work.") 
 
 # USEFUL FOR GENERATING SETS OF HYPERPARAMETERS
-def generate_parameters(default_parameters : Dict, **kwargs):
+def generate_parameters(default_parameters : Dict, default_name : str, **kwargs):
     """
     Generate new parameters which are combinations of the
     given keyword arguments. The keyword arguments can 
@@ -436,19 +462,20 @@ def generate_parameters(default_parameters : Dict, **kwargs):
 
     :param Dict default_parameters: The dictionary holding all \
     default parameters for the parameter sets.
+    :param Dict default_name: The name characterizing the default dictionary.
     :return Dict returned: A dictionary holding all generated parameter dicts \
     paired with auto-generated names attributed to them.
     """
 
     def new_dict_from_old(old_name, old_dict, key, val):
-        if old_name == "default":
+        if old_name == default_name:
             new_name = f"{key}_{str(val)}"
         else:
             new_name = name + f"_{key}_{str(val)}"
         old_dict[key] = val
         return new_name, old_dict
 
-    returned = {"default" : default_parameters}
+    returned = {default_name : default_parameters}
     for key, values in kwargs.items():
         if type(values) != type([]):
             for d in returned.values(): d[key] = values
@@ -472,3 +499,16 @@ def generate_parameters(default_parameters : Dict, **kwargs):
                     new_dicts[new_name] = new_dict
             returned = new_dicts
     return returned
+
+def generate_name_from_parameter_dict(parameter_dict : Dict):
+    """
+    Generates a name characterizing a given parameter dict.
+    The order of terms in the dictionary is the order in which 
+    parameters are listed.
+
+    :param Dict parameter_dict: The parameter dict for which we generate the name.
+    """
+    acc = str(list(parameter_dict.keys())[0]) + "_" + str(list(parameter_dict.values())[0])
+    [acc := acc + "_" + str(key) + "_" + str(val) for key, val in list(parameter_dict.items())[1:]]
+    return acc
+        

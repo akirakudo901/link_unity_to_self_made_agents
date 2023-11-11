@@ -12,6 +12,7 @@ from typing import List
 
 import matplotlib.pyplot as plt
 import wandb
+from wandb.util import generate_id
 import yaml
 
 from models.trainers.utils.buffer import Buffer, NdArrayBuffer
@@ -145,6 +146,17 @@ class OffPolicyBaseTrainer(ABC):
                 logging.error(traceback.format_exc())
                 print("Loading a previous progress was unsuccessful...")
 
+                go_next = False
+                while not go_next:
+                    keep_going = input("Would you like to proceed with an entirely new run? y/n")
+                    if keep_going.lower() in ["n", "no"]:
+                        raise Exception("Terminating this session...")
+                    elif keep_going.lower() in ["y", "yes"]:
+                        go_next = True
+                        print("Will initialize a new run!")
+                    else:
+                        print("Entry couldn't be parsed... try again!\n")
+
         # otherwise train from scratch
         start_time = timer()
         
@@ -202,11 +214,32 @@ class OffPolicyBaseTrainer(ABC):
         """
         Helper to abstract code from both train() and resume_training().
         """
+        # curating the config dict for wandb
+        wandb_config_dict = learning_algorithm._get_parameter_dict()
+        wandb_config_dict["num_training_epochs"] = num_training_epochs
+        wandb_config_dict["new_experience_per_epoch"] = new_experience_per_epoch
+        wandb_config_dict["evaluate_every_N_epochs"] = evaluate_every_N_epochs
+        wandb_config_dict["evaluate_N_samples"] = evaluate_N_samples
+
+        # initialize the run
         wandb.init(
             project='MINT-RL-Algorithms',
             group=f'{task_name}_{learning_algorithm.ALGORITHM_NAME}',
+            config=wandb_config_dict,
+            config_exclude_keys=["obs_dim_size", 
+                                 "act_dim_size",
+                                 "obs_num_discrete",
+                                 "act_num_discrete",
+                                 "obs_ranges",
+                                 "act_ranges", 
+                                 "qnet1_loss_history",
+                                 "qnet2_loss_history",
+                                 "policy_loss_history"], #if those keys are cluttering the files
+            tags=[task_name, learning_algorithm.ALGORITHM_NAME],
             settings=wandb.Settings(_disable_stats=True),
-            name=f'run_id={training_id}'
+            name=f'run_id={training_id}',
+            resume="allow",
+            id=generate_id()
         )
 
         start_time = timer()

@@ -21,31 +21,6 @@ from models.trainers.utils.buffer import Buffer
 class SoftActorCritic(PolicyLearningAlgorithm):
     ALGORITHM_NAME = "SAC"
     NUMBER_DTYPE = torch.float32
-
-    @staticmethod
-    def create_net(input_size : int, 
-                   output_size : int, 
-                   interim_layer_sizes : Tuple[int]):
-        """
-        Creates a network model which input and output sizes as well as
-        interim layer sizes are determined. Each layer will be linear
-        followed by ReLU except the very last layer which lacks activation.
-        Returns the generated network as instance of nn.Sequential.
-
-        :param int input_size: The number of dimensions for the input.
-        :param int output_size: The number of dimensions for the output.
-        :param Tuple[int] interim_layer_sizes: The number of neurons for each \
-        interim layer.
-        :return nn.Sequential: The generated model as instance of nn.Sequential.
-        """
-        layer_sizes = [input_size] + list(interim_layer_sizes) + [output_size]
-        layers = []
-        for i, sz in enumerate(layer_sizes[:-1]):
-            layers.append(nn.Linear(sz, layer_sizes[i+1]))
-            if i != len(layer_sizes) - 2:
-                layers.append(nn.ReLU())
-
-        return nn.Sequential(*layers)
     
     class QNet(nn.Module):
         """
@@ -72,7 +47,7 @@ class SoftActorCritic(PolicyLearningAlgorithm):
             """
             super(SoftActorCritic.QNet, self).__init__()
 
-            self.linear_relu_stack = SoftActorCritic.create_net(
+            self.linear_relu_stack = PolicyLearningAlgorithm.create_net(
                 input_size=observation_size + action_size,
                 output_size=1,
                 interim_layer_sizes=qnet_layer_sizes
@@ -133,7 +108,7 @@ class SoftActorCritic(PolicyLearningAlgorithm):
             # of shape [act_dim]
             self.action_multiplier = torch.tensor([(range[1] - range[0]) / 2 for range in action_ranges]).to(SoftActorCritic.NUMBER_DTYPE)
             
-            self.linear_relu_stack = SoftActorCritic.create_net(
+            self.linear_relu_stack = PolicyLearningAlgorithm.create_net(
                 input_size=observation_size,
                 output_size=1,
                 interim_layer_sizes=policy_layer_sizes
@@ -861,21 +836,39 @@ class SoftActorCritic(PolicyLearningAlgorithm):
                                                                         next_observations.to(device))
 
         return observations,actions,rewards,dones,next_observations
+
+    def __call__(self, state : Union[torch.tensor, np.ndarray], deterministic=True):
+        """
+        A raw call to the function which then calls get_optimal_action. 
+        Can choose whether we compute the action deterministically or stochastically.
+
+        :param torch.tensor or np.ndarray state: The state of observation in question \
+        to which this algorithm was applied.
+        :param bool deterministic: Whether the action is computed deterministically or \
+        stochastically.
+        """
+        return self.get_optimal_action(state, deterministic=deterministic)
     
-    def get_optimal_action(self, state : Union[torch.tensor, np.ndarray]):
+    def get_optimal_action(self, state : Union[torch.tensor, np.ndarray], 
+                           deterministic : bool=True):
         """
         Computes the currently optimal action given an observation state.
         State can be either a torch tensor or numpy array, both being converted
         into a torch tensor before further processing is done.
+        Can choose between deterministic or stochastic computation.
 
         :param torch.tensor or np.ndarray state: The observation state. 
+        :param bool deterministic: Whether to compute the action deterministically \
+        (return the mean of the distribution) or stochastically (sample from the distribution).
         :return np.ndarray action: The action the policy deems optimal as ndarray. 
         """
         with torch.no_grad():
             state_tensor = super().get_optimal_action(state)
-            action = self.policy(obs=state_tensor.to(self.device), #add a batch dimension
-                                deterministic=True).cpu()
-            return action.detach().numpy()
+            if deterministic:
+                action = self.policy(obs=state_tensor.to(self.device), deterministic=deterministic)
+            else: 
+                action, _ = self.policy(obs=state_tensor.to(self.device), deterministic=deterministic)
+            return action.detach().cpu().numpy()
     
     def save(self, task_name: str, save_dir : str = None):
         """

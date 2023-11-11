@@ -429,11 +429,38 @@ import torch
 
 # wandb.log({"multi-trial rewards" : wandb.Image(plt)})
 
-import gymnasium
-from models.policy_learning_algorithms.soft_actor_critic import SoftActorCritic
+# import gymnasium
+# from models.policy_learning_algorithms.soft_actor_critic import SoftActorCritic
 
-env = gymnasium.make("BipedalWalker-v3")
-sac = SoftActorCritic(1e-3, 1e-3, 0.99, 0.1, 0.005, 64, 64, 1, env=env)
-print(sac.obs_dim_size)
-print(sac.act_dim_size)
-print(sac.act_ranges)
+# env = gymnasium.make("BipedalWalker-v3")
+# sac = SoftActorCritic(1e-3, 1e-3, 0.99, 0.1, 0.005, 64, 64, 1, env=env)
+# print(sac.obs_dim_size)
+# print(sac.act_dim_size)
+# print(sac.act_ranges)
+
+# def generate_name_from_parameter_dict(parameter_dict):
+#     """
+#     Generates a name characterizing a given parameter dict.
+#     The order of terms in the dictionary is the order in which 
+#     parameters are listed.
+
+#     :param Dict parameter_dict: The parameter dict for which we generate the name.
+#     """
+#     acc = str(list(parameter_dict.keys())[0]) + "_" + str(list(parameter_dict.values())[0])
+#     [acc := acc + "_" + str(key) + "_" + str(val) for key, val in list(parameter_dict.items())[1:]]
+#     return acc
+
+# param_dict = {
+#     "param1" : 1.0,
+#     "param2" : "amazing",
+#     "param3" : 30,
+#     "param4" : (1, 2, 3)
+# }
+# print(generate_name_from_parameter_dict(param_dict))
+
+# import gymnasium
+
+# env = gymnasium.make("Pendulum-v1")
+# unscaled_high, unscaled_low = env.observation_space.high, env.observation_space.low
+# print(unscaled_high)
+# print(unscaled_low)
