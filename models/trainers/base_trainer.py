@@ -135,6 +135,7 @@ class OffPolicyBaseTrainer(ABC):
         """
 
         def parse_input(question):
+            print("\n")
             while True:
                 keep_going = input(question)
                 if   keep_going.lower() in ["n",  "no"]: return False
@@ -153,9 +154,15 @@ class OffPolicyBaseTrainer(ABC):
                 make_new_run = parse_input("A training id was given but no corresponding previous run was found " + 
                                            f"in {OffPolicyBaseTrainer.PROGRESS_SAVING_DIR} with the name " + 
                                            f"'{task_name}_{training_id}_folder'.\n" + 
-                                           "Would you like to start a new run with the same name (y) or terminate (n)?")
-                if not make_new_run: raise Exception("Terminating this session...")
-                else: print("Will initialize a new run!")
+                                           "Would you like to start a new run with a different id (y) or terminate (n)?")
+                if not make_new_run: 
+                    raise Exception("Terminating this session...")
+                else: 
+                    print("Will initialize a new run!")
+                    # generate a new id for the new run
+                    training_id = generate_id()
+                    print(f"Newly generated training id : {training_id} will be used for training.")
+
             # try to resume a previous training if there is one
             else:
                 try:
@@ -170,9 +177,14 @@ class OffPolicyBaseTrainer(ABC):
                     logging.error(traceback.format_exc())
                     print("Loading a previous progress was unsuccessful...")
 
-                    make_new_run = parse_input("Would you like to proceed with an entirely new run? y/n")
-                    if not make_new_run: raise Exception("Terminating this session...")
-                    else: print("Will initialize a new run!")
+                    make_new_run = parse_input("Would you like to proceed with a new run with new id? y/n")
+                    if not make_new_run: 
+                        raise Exception("Terminating this session...")
+                    else: 
+                        print("Will initialize a new run!")
+                        # generate a new id for the new run
+                        training_id = generate_id()
+                        print(f"Newly generated training id : {training_id} will be used for training.")
 
         # otherwise train from scratch
         start_time = timer()

@@ -43,6 +43,6 @@ parameters = {
     }
 }
 
-train_SAC_on_gym(parameters=parameters["online_example"], parameter_name="online_example_without_clipping",
+train_SAC_on_gym(parameters=parameters["online_example"], parameter_name="online_example",
           env=env, trainer=trainer,
-          training_id="7fk52q9j")
+          training_id="zt6qe94f")
