@@ -19,7 +19,7 @@ from wandb.util import generate_id
 
 from models.policy_learning_algorithms.policy_learning_algorithm import PolicyLearningAlgorithm
 from models.trainers.utils.buffer import Buffer
-from models.trainers.base_trainer import OffPolicyBaseTrainer
+from models.trainers.gym_base_trainer import GymOffPolicyBaseTrainer
 
 class SoftActorCritic(PolicyLearningAlgorithm):
     ALGORITHM_NAME = "SAC"
@@ -1104,10 +1104,10 @@ def uniform_random_sampling_wrapper(learning_algorithm : SoftActorCritic):
     return uniform_random_sampling
 
 # TRAINING CODE
-def train_SAC(parameters : Dict, 
+def train_SAC_on_gym(parameters : Dict, 
               parameter_name : str, 
               env,
-              trainer : OffPolicyBaseTrainer,
+              trainer : GymOffPolicyBaseTrainer,
               training_id : int = None
               ):
     """
@@ -1119,7 +1119,7 @@ def train_SAC(parameters : Dict,
     :param str parameter_name: The name of the parameter, which will \
         be used as the name of the run.
     :param env: The environment we run the training on.
-    :param OffPolicyBaseTrainer trainer: The trainer we use for trianing.
+    :param GymOffPolicyBaseTrainer trainer: The trainer we use for trianing.
     :param int training_id: An id used to uniquely determine this run. If given \
     as None or not given, will generate a new unique ID. Otherwise, if there is \
     a corresponding run in the past, we restart from that run.
@@ -1137,6 +1137,8 @@ def train_SAC(parameters : Dict,
         pol_eval_batch_size=parameters["pol_eval_batch_size"],
         pol_imp_batch_size=parameters["pol_imp_batch_size"],
         update_qnet_every_N_gradient_steps=parameters["update_qnet_every_N_gradient_steps"],
+        qnet_layer_sizes=parameters["qnet_layer_sizes"],
+        policy_layer_sizes=parameters["policy_layer_sizes"]
         env=env
         # leave the optimizer as the default = Adam
         )
