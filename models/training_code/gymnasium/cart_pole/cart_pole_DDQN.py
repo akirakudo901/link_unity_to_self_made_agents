@@ -32,8 +32,7 @@ parameters = {
           "num_init_exp" : 1000,
           "num_new_exp" : 1,
           "buffer_size" : 10000,
-          "save_after_training" : True,
-          "training_id" : 101,
+          "save_after_training" : True
           },
       # below is inspired from https://github.com/lsimmons2/double-dqn-cartpole-solution/blob/master/double_dqn.py
       "trial" : { 
@@ -49,8 +48,7 @@ parameters = {
           "num_init_exp" : 500,
           "num_new_exp" : 1,
           "buffer_size" : 100000,
-          "save_after_training" : False,
-          "training_id" : 103,
+          "save_after_training" : False
            }
 }
 

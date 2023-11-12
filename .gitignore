@@ -10,3 +10,6 @@
 /algorithm_theories
 # ignore everything pertaining to wandb
 /wandb
+# ignore playground.py and t_estgroud.py since they are just to try ideas
+playground.py
+t_estground.py

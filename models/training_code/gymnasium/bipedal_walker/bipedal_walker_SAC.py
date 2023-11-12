@@ -30,8 +30,7 @@ parameters = {
         "num_new_exp" : 1,
         "evaluate_every_N_epochs" : MAX_EPISODE_STEPS,
         "buffer_size" : int(1e6),
-        "save_after_training" : True,
-        "training_id" : 99
+        "save_after_training" : True
     },
     "try_exploration_from_vanilla" : {
         "q_net_learning_rate"  : 1e-3,
@@ -49,8 +48,7 @@ parameters = {
         "num_new_exp" : 1,
         "evaluate_every_N_epochs" : MAX_EPISODE_STEPS,
         "buffer_size" : int(1e6),
-        "save_after_training" : False,
-        "training_id" : 1876
+        "save_after_training" : False
     },
         "try_256by256" : {
         "q_net_learning_rate"  : 1e-3,
@@ -68,8 +66,7 @@ parameters = {
         "num_new_exp" : 1,
         "evaluate_every_N_epochs" : MAX_EPISODE_STEPS,
         "buffer_size" : int(1e6),
-        "save_after_training" : True,
-        "training_id" : 99
+        "save_after_training" : True
     },
     "try_big_policy" : {
         "q_net_learning_rate"  : 1e-3,
@@ -87,8 +84,7 @@ parameters = {
         "num_new_exp" : 1,
         "evaluate_every_N_epochs" : MAX_EPISODE_STEPS,
         "buffer_size" : int(1e6),
-        "save_after_training" : True,
-        "training_id" : 0
+        "save_after_training" : True
     },
 }
         
@@ -147,7 +143,6 @@ params_to_try = generate_parameters(default_parameters=parameters["try_256by256"
 
 for i, name_and_dict in enumerate(params_to_try.items()):
     name, p = name_and_dict
-    p["training_id"] = 300 + i
     train_SAC_on_bipedal_walker(name, params_dict=params_to_try)
 
 # JUST TRAIN ONE PARAMETER

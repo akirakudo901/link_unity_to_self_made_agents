@@ -8,7 +8,7 @@ If we can't solve this, there is an error somewhere in the code to be fixed.
 
 import gymnasium
 
-from models.policy_learning_algorithms.soft_actor_critic import SoftActorCritic, no_exploration_wrapper, uniform_random_sampling_wrapper
+from models.policy_learning_algorithms.soft_actor_critic import SoftActorCritic, no_exploration_wrapper, train_SAC
 from models.trainers.gym_base_trainer import GymOffPolicyBaseTrainer
 
 # create the environment and determine specs about it
@@ -26,13 +26,14 @@ parameters = {
         "pol_eval_batch_size" : 64,
         "pol_imp_batch_size" : 64,
         "update_qnet_every_N_gradient_steps" : 1,
-        "num_training_steps" : MAX_EPISODE_STEPS * 1,
+        "num_training_steps" : MAX_EPISODE_STEPS * 200,
         "num_init_exp" : 0,
         "num_new_exp" : 1,
-        "evaluate_every_N_epochs" : 200,
+        "evaluate_N_samples" : 1,
+        "evaluate_every_N_epochs" : MAX_EPISODE_STEPS,
         "buffer_size" : int(1e6),
         "save_after_training" : True,
-        "training_id" : 10
+        "render_evaluation" : False
     }
 }
 
@@ -54,8 +55,6 @@ def train_SAC_on_pendulum(parameter_name : str):
         env=env
         # leave the optimizer as the default = Adam
         )
-    
-    TASK_NAME = learning_algorithm.ALGORITHM_NAME + "_" + env.spec.id
 
     l_a = trainer.train(
         learning_algorithm=learning_algorithm,
@@ -69,12 +68,14 @@ def train_SAC_on_pendulum(parameter_name : str):
         training_exploration_function=no_exploration_wrapper(learning_algorithm),
         training_exploration_function_name="no_exploration",
         save_after_training=param["save_after_training"],
-        task_name=TASK_NAME + parameter_name + str(param["temperature"]),
+        task_name=env.spec.id,
         training_id=param["training_id"],
         render_evaluation=False
         )
 
     return l_a
+
+
 
 # temps = [r*0.05 for r in [3,5,8,2]]
 # print(temps)
@@ -83,4 +84,10 @@ def train_SAC_on_pendulum(parameter_name : str):
 #     parameters["play_around"]["temperature"] = temp
 #     train_SAC_on_pendulum(parameter_name="play_around")
 
-train_SAC_on_pendulum(parameter_name="online_example")
+# old version
+# train_SAC_on_pendulum(parameter_name="online_example")
+
+# new version
+train_SAC(parameters=parameters["online_example"], parameter_name="online_example",
+          env=env, trainer=trainer,
+          training_id="zt6qe94f")

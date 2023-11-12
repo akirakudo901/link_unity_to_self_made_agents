@@ -12,7 +12,6 @@ from typing import List
 
 import matplotlib.pyplot as plt
 import wandb
-from wandb.util import generate_id
 import yaml
 
 from models.trainers.utils.buffer import Buffer, NdArrayBuffer
@@ -178,7 +177,7 @@ class OffPolicyBaseTrainer(ABC):
             end_time = timer()
             learning_algorithm = self._helper_train(learning_algorithm=learning_algorithm,
                                                     num_training_epochs=num_training_epochs,
-                                                    training_epochs_so_far=0,
+                                                    training_epochs_so_far=1,
                                                     new_experience_per_epoch=new_experience_per_epoch,
                                                     evaluate_every_N_epochs=evaluate_every_N_epochs,
                                                     evaluate_N_samples=evaluate_N_samples,
@@ -223,8 +222,8 @@ class OffPolicyBaseTrainer(ABC):
 
         # initialize the run
         wandb.init(
-            project='MINT-RL-Algorithms',
-            group=f'{task_name}_{learning_algorithm.ALGORITHM_NAME}',
+            project=f'{self.env_name}_{learning_algorithm.ALGORITHM_NAME}',
+            group=task_name,
             config=wandb_config_dict,
             config_exclude_keys=["obs_dim_size", 
                                  "act_dim_size",
@@ -239,7 +238,7 @@ class OffPolicyBaseTrainer(ABC):
             settings=wandb.Settings(_disable_stats=True),
             name=f'run_id={training_id}',
             resume="allow",
-            id=generate_id()
+            id=training_id
         )
 
         start_time = timer()
@@ -247,7 +246,7 @@ class OffPolicyBaseTrainer(ABC):
         try:
 
             # the training loop
-            for i in range(training_epochs_so_far, num_training_epochs):
+            for i in range(training_epochs_so_far + 1, num_training_epochs + 1):
                 
                 self.generate_batch_of_experiences(
                     buffer=experiences,
@@ -259,15 +258,15 @@ class OffPolicyBaseTrainer(ABC):
                 learning_algorithm.update(experiences)
 
                 # evaluate sometimes
-                if (i + 1) % (evaluate_every_N_epochs) == 0:
+                if i % (evaluate_every_N_epochs) == 0:
                     cumulative_reward = self.evaluate(learning_algorithm, evaluate_N_samples)
                     cumulative_rewards.append(cumulative_reward)
-                    print(f"Training loop {i+1}/{num_training_epochs} successfully ended: reward={cumulative_reward}.\n")
+                    print(f"Training loop {i}/{num_training_epochs} successfully ended: reward={cumulative_reward}.\n")
                     
                     wandb.log({"Cumulative Reward" : cumulative_reward})
 
                     intermediate_time = timer()
-                    wandb.log({"Time Elapsed" : (intermediate_time - start_time)})
+                    wandb.log({"Time Elapsed" : (intermediate_time - start_time + time_so_far)})
 
                     if save_after_training:
                         # also save when evaluating
