@@ -12,6 +12,7 @@ from typing import List
 
 import matplotlib.pyplot as plt
 import wandb
+from wandb.util import generate_id
 import yaml
 
 from models.trainers.utils.buffer import Buffer, NdArrayBuffer
@@ -127,34 +128,51 @@ class OffPolicyBaseTrainer(ABC):
         :param bool save_after_training: Whether to save the resulting algorithm using
         PolicyLearningAlgorithm.save().
         :param str task_name: The name of this task.
-        :param int training_id: The training id that specifies the training process.
+        :param int training_id: An id used to uniquely determine this run. If given \
+        as None, will generate a new unique ID. Otherwise, if there is a corresponding \
+        run in the past, we restart from that run.
         :return PolicyLearningAlgorithm: The trained algorithm.
         """
-        # first try to resume a previous training if there is one
-        if os.path.exists(os.path.join(OffPolicyBaseTrainer.PROGRESS_SAVING_DIR, 
-                                       f"{task_name}_{training_id}_folder")):
-            try:
-                algo = self.resume_training(learning_algorithm=learning_algorithm,
-                                            training_exploration_function=training_exploration_function,
-                                            task_name=task_name,
-                                            training_id=training_id,
-                                            training_exploration_function_name=training_exploration_function_name,
-                                            num_training_epochs=num_training_epochs)
-                return algo
-            except Exception:
-                logging.error(traceback.format_exc())
-                print("Loading a previous progress was unsuccessful...")
 
-                go_next = False
-                while not go_next:
-                    keep_going = input("Would you like to proceed with an entirely new run? y/n")
-                    if keep_going.lower() in ["n", "no"]:
-                        raise Exception("Terminating this session...")
-                    elif keep_going.lower() in ["y", "yes"]:
-                        go_next = True
-                        print("Will initialize a new run!")
-                    else:
-                        print("Entry couldn't be parsed... try again!\n")
+        def parse_input(question):
+            while True:
+                keep_going = input(question)
+                if   keep_going.lower() in ["n",  "no"]: return False
+                elif keep_going.lower() in ["y", "yes"]: return True
+                else: print("Entry couldn't be parsed... try again!\n")
+
+        # check if training id is specified and work accordingly
+        if training_id is None: 
+            training_id = generate_id()
+            print(f"Newly generated training id : {training_id} will be used for training.")
+        # otherwise if training id is speicified
+        else:
+            # if no past run stored in this computer has the corresponding id 
+            if not os.path.exists(os.path.join(OffPolicyBaseTrainer.PROGRESS_SAVING_DIR, 
+                                               f"{task_name}_{training_id}_folder")):
+                make_new_run = parse_input("A training id was given but no corresponding previous run was found " + 
+                                           f"in {OffPolicyBaseTrainer.PROGRESS_SAVING_DIR} with the name " + 
+                                           f"'{task_name}_{training_id}_folder'.\n" + 
+                                           "Would you like to start a new run with the same name (y) or terminate (n)?")
+                if not make_new_run: raise Exception("Terminating this session...")
+                else: print("Will initialize a new run!")
+            # try to resume a previous training if there is one
+            else:
+                try:
+                    algo = self.resume_training(learning_algorithm=learning_algorithm,
+                                                training_exploration_function=training_exploration_function,
+                                                task_name=task_name,
+                                                training_id=training_id,
+                                                training_exploration_function_name=training_exploration_function_name,
+                                                num_training_epochs=num_training_epochs)
+                    return algo
+                except Exception:
+                    logging.error(traceback.format_exc())
+                    print("Loading a previous progress was unsuccessful...")
+
+                    make_new_run = parse_input("Would you like to proceed with an entirely new run? y/n")
+                    if not make_new_run: raise Exception("Terminating this session...")
+                    else: print("Will initialize a new run!")
 
         # otherwise train from scratch
         start_time = timer()

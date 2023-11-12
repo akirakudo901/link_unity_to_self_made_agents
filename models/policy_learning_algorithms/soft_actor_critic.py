@@ -15,7 +15,6 @@ import torch.optim as optim
 from torch.distributions.normal import Normal
 from torch.distributions.independent import Independent
 import wandb
-from wandb.util import generate_id
 
 from models.policy_learning_algorithms.policy_learning_algorithm import PolicyLearningAlgorithm
 from models.trainers.utils.buffer import Buffer
@@ -559,8 +558,9 @@ class SoftActorCritic(PolicyLearningAlgorithm):
         random.seed(seed)
 
         def clip_gradient(net: nn.Module) -> None: #TODO
-            for param in net.parameters():
-                param.grad.data.clamp_(-1, 1)
+            # for param in net.parameters():
+            #     param.grad.data.clamp_(-1, 1)
+            pass #TODO see how this changes the results
 
         def get_new_seed():
             """
@@ -1108,7 +1108,7 @@ def train_SAC_on_gym(parameters : Dict,
               parameter_name : str, 
               env,
               trainer : GymOffPolicyBaseTrainer,
-              training_id : int = None
+              training_id : int
               ):
     """
     Trains an SAC algorithm on the given parameters on 
@@ -1121,7 +1121,7 @@ def train_SAC_on_gym(parameters : Dict,
     :param env: The environment we run the training on.
     :param GymOffPolicyBaseTrainer trainer: The trainer we use for trianing.
     :param int training_id: An id used to uniquely determine this run. If given \
-    as None or not given, will generate a new unique ID. Otherwise, if there is \
+    as None, will generate a new unique ID. Otherwise, if there is \
     a corresponding run in the past, we restart from that run.
     :return SoftActorCritic l_a: Returns the trained learning algorithm.
     """
@@ -1138,14 +1138,10 @@ def train_SAC_on_gym(parameters : Dict,
         pol_imp_batch_size=parameters["pol_imp_batch_size"],
         update_qnet_every_N_gradient_steps=parameters["update_qnet_every_N_gradient_steps"],
         qnet_layer_sizes=parameters["qnet_layer_sizes"],
-        policy_layer_sizes=parameters["policy_layer_sizes"]
+        policy_layer_sizes=parameters["policy_layer_sizes"],
         env=env
         # leave the optimizer as the default = Adam
         )
-    
-    if training_id is None: 
-        training_id = generate_id()
-        print(f"Newly generated training id : {training_id} will be used for training.")
 
     l_a = trainer.train(
         learning_algorithm=learning_algorithm,

@@ -8,7 +8,7 @@ If we can't solve this, there is an error somewhere in the code to be fixed.
 
 import gymnasium
 
-from models.policy_learning_algorithms.soft_actor_critic import SoftActorCritic, no_exploration_wrapper, train_SAC
+from models.policy_learning_algorithms.soft_actor_critic import SoftActorCritic, no_exploration_wrapper, train_SAC_on_gym
 from models.trainers.gym_base_trainer import GymOffPolicyBaseTrainer
 
 # create the environment and determine specs about it
@@ -23,71 +23,26 @@ parameters = {
         "discount" : 0.99,
         "temperature" : 0.10,
         "qnet_update_smoothing_coefficient" : 0.005,
+
         "pol_eval_batch_size" : 64,
         "pol_imp_batch_size" : 64,
         "update_qnet_every_N_gradient_steps" : 1,
-        "num_training_steps" : MAX_EPISODE_STEPS * 200,
+        
+        "num_training_steps" : MAX_EPISODE_STEPS * 100,
         "num_init_exp" : 0,
         "num_new_exp" : 1,
         "evaluate_N_samples" : 1,
         "evaluate_every_N_epochs" : MAX_EPISODE_STEPS,
         "buffer_size" : int(1e6),
+
         "save_after_training" : True,
-        "render_evaluation" : False
+        "render_evaluation" : False,
+
+        "qnet_layer_sizes" : (64, 64),
+        "policy_layer_sizes" : (64, 64)
     }
 }
 
-def train_SAC_on_pendulum(parameter_name : str):
-
-    print(f"Training: {parameter_name}")
-
-    param = parameters[parameter_name]
-
-    learning_algorithm = SoftActorCritic(
-        q_net_learning_rate=param["q_net_learning_rate"], 
-        policy_learning_rate=param["policy_learning_rate"], 
-        discount=param["discount"], 
-        temperature=param["temperature"],
-        qnet_update_smoothing_coefficient=param["qnet_update_smoothing_coefficient"],
-        pol_eval_batch_size=param["pol_eval_batch_size"],
-        pol_imp_batch_size=param["pol_imp_batch_size"],
-        update_qnet_every_N_gradient_steps=param["update_qnet_every_N_gradient_steps"],
-        env=env
-        # leave the optimizer as the default = Adam
-        )
-
-    l_a = trainer.train(
-        learning_algorithm=learning_algorithm,
-        num_training_epochs=param["num_training_steps"], 
-        new_experience_per_epoch=param["num_new_exp"],
-        max_buffer_size=param["buffer_size"],
-        num_initial_experiences=param["num_init_exp"],
-        evaluate_every_N_epochs=param["evaluate_every_N_epochs"],
-        evaluate_N_samples=1,
-        initial_exploration_function=no_exploration_wrapper(learning_algorithm),
-        training_exploration_function=no_exploration_wrapper(learning_algorithm),
-        training_exploration_function_name="no_exploration",
-        save_after_training=param["save_after_training"],
-        task_name=env.spec.id,
-        training_id=param["training_id"],
-        render_evaluation=False
-        )
-
-    return l_a
-
-
-
-# temps = [r*0.05 for r in [3,5,8,2]]
-# print(temps)
-# for temp in temps:
-#     print(f"Working on {temp}!")
-#     parameters["play_around"]["temperature"] = temp
-#     train_SAC_on_pendulum(parameter_name="play_around")
-
-# old version
-# train_SAC_on_pendulum(parameter_name="online_example")
-
-# new version
-train_SAC(parameters=parameters["online_example"], parameter_name="online_example",
+train_SAC_on_gym(parameters=parameters["online_example"], parameter_name="online_example_without_clipping",
           env=env, trainer=trainer,
-          training_id="zt6qe94f")
+          training_id="7fk52q9j")
