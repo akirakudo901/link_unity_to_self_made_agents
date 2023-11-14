@@ -116,7 +116,7 @@ class SoftActorCritic(PolicyLearningAlgorithm):
                 interim_layer_sizes=policy_layer_sizes
             )[:-1]
 
-            self.mean_layer = nn.Linear(policy_layer_sizes[-1], action_size) #initial implementation
+            self.mean_layer = nn.Linear(policy_layer_sizes[-1], action_size)
             self.sd_layer = nn.Linear(policy_layer_sizes[-1], action_size)
 
         def forward(self,  #new
@@ -557,11 +557,6 @@ class SoftActorCritic(PolicyLearningAlgorithm):
 
         random.seed(seed)
 
-        def clip_gradient(net: nn.Module) -> None: #TODO
-            # for param in net.parameters():
-            #     param.grad.data.clamp_(-1, 1)
-            pass #TODO see how this changes the results
-
         def get_new_seed():
             """
             Calcualtes a new seed given an old seed using random.randint...
@@ -614,7 +609,6 @@ class SoftActorCritic(PolicyLearningAlgorithm):
         # backpropagate that loss through qnet1
         self.optim_qnet1.zero_grad()
         loss1.backward()
-        clip_gradient(self.qnet1)
         self.optim_qnet1.step()
         self.qnet1_loss_history.append(loss1.item())
         if wandb.run is not None: wandb.log({"QNet1 Loss" : loss1.item()})
@@ -624,7 +618,6 @@ class SoftActorCritic(PolicyLearningAlgorithm):
         # backpropagate that loss through qnet1
         self.optim_qnet2.zero_grad()
         loss2.backward()
-        clip_gradient(self.qnet2)
         self.optim_qnet2.step()
         self.qnet2_loss_history.append(loss2.item())
         if wandb.run is not None: wandb.log({"QNet2 Loss" : loss2.item()})
@@ -675,13 +668,14 @@ class SoftActorCritic(PolicyLearningAlgorithm):
         # then, we improve the policy by minimizing this loss 
         self.optim_policy.zero_grad()
         loss.backward()
-        clip_gradient(self.policy)
         self.optim_policy.step()
         self.policy_loss_history.append(loss.item())
         if wandb.run is not None: 
             wandb.log({"Policy Loss" : loss.item()})
             # also log the total loss for this single update step
             wandb.log({"Total Loss" : loss1.item() + loss2.item() + loss.item()})
+            # finally log the average entropy of sampled actions (estimating entropy of current policy)
+            wandb.log({"Estimated Policy Entropy" : log_probs2.detach().cpu().mean().item()})
 
         for param in self.qnet1.parameters():
             param.requires_grad = True
@@ -947,15 +941,15 @@ class SoftActorCritic(PolicyLearningAlgorithm):
         defaults to None.
         An example of format will be "trained_algorithms/SAC/walker_2023_07_25_09_52/".
         """
-        if not path.endswith("/"): path += "/"
+        if not path.endswith(os.sep): path += os.sep
         
         suffix =  ".pth"
-        try: 
-            self.policy.load_state_dict(   torch.load(path + "policy"    + suffix))
-            self.qnet1.load_state_dict(    torch.load(path + "qnet1"     + suffix))
-            self.qnet2.load_state_dict(    torch.load(path + "qnet2"     + suffix))
-            self.qnet1_tar.load_state_dict(torch.load(path + "qnet1_tar" + suffix))
-            self.qnet2_tar.load_state_dict(torch.load(path + "qnet2_tar" + suffix))
+        try:
+            self.policy.load_state_dict(   torch.load(path + "policy"    + suffix, map_location=self.device))
+            self.qnet1.load_state_dict(    torch.load(path + "qnet1"     + suffix, map_location=self.device))
+            self.qnet2.load_state_dict(    torch.load(path + "qnet2"     + suffix, map_location=self.device))
+            self.qnet1_tar.load_state_dict(torch.load(path + "qnet1_tar" + suffix, map_location=self.device))
+            self.qnet2_tar.load_state_dict(torch.load(path + "qnet2_tar" + suffix, map_location=self.device))
         except:
             raise Exception("LOADING SOMEHOW FAILED...")
         
