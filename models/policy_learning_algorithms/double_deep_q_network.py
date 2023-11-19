@@ -3,8 +3,9 @@ A DDQN algorithm to be used as learning algorithm.
 """
 
 import os
+import random
 
-from typing import Dict, Tuple
+from typing import Dict, Union, Tuple
 import numpy as np
 import torch
 import torch.nn as nn
@@ -248,3 +249,77 @@ def convert_continuous_action_to_discrete(continuous_actions : torch.tensor) -> 
     """
     discrete_actions = (continuous_actions - MIN) // ((MAX - MIN) / ACTION_DISCRETIZED_NUMBER)
     return discrete_actions
+
+# EXPLORATION FUNCTION
+# TODO ADJUST!
+def uniform_random_sampling(learning_algorithm : DoubleDeepQNetwork):
+    # initially sample actions from a uniform random distribution of the right
+    # range, in order to extract good reward signals
+    def no_exploration(obs : Union[torch.tensor, np.ndarray]):
+        """
+        Takes a raw observation from the environment, returning the 
+        corresponding actions obtained from DDQN.
+
+        :param Union[torch.tensor, np.ndarray] obs: An observation object, either \
+        of shape [obs_dim] or [batch_dim, obs_dim]. 
+        :raises Exception: If obs isn't either of torch.tensor or np.ndarray, raise \
+        an exception.
+        :return np.ndarray: Returns the obtained action, with or without the batch \
+        dimension depending on the input. 
+        """
+        if type(obs) == type(np.array([0])):
+            obs = torch.from_numpy(obs)
+        else:
+            raise Exception("Value passed as action to no_exploration was of type ", type(obs), 
+                            "but should be either a torch.tensor or np.ndarray to successfully work.")
+        # if there is the batch dimension
+        if len(obs.shape) == 2:
+            return learning_algorithm(obs.to(learning_algorithm.device))
+        # if there is no batch dimension
+        elif len(obs.shape) == 1:
+            action = learning_algorithm(torch.unsqueeze(obs.to(learning_algorithm.device), dim=0))
+            return np.squeeze(action, axis=0)
+        else: 
+            raise Exception("Given observation not of shape [batch_dim, obs_dim] or [obs_dim]...")
+
+    a = np.array(1) if random.random() >= 0.5 else np.array(0)
+    return a
+
+def no_exploration_wrapper(learning_algorithm : DoubleDeepQNetwork):
+    """
+    Returns an exploration function which samples actions from the 
+    current policy.
+    To be passed as argument to trainers.
+    :param DoubleDeepQNetwork learning_algorithm: The learning algorithm used to \
+    sample actions.
+    :return uniform_random_sampling: The function that returns the actions.
+    """
+
+    def no_exploration(obs : Union[torch.tensor, np.ndarray]):
+        """
+        Takes a raw observation from the environment, returning the 
+        corresponding actions obtained from DDQN.
+
+        :param Union[torch.tensor, np.ndarray] obs: An observation object, either \
+        of shape [obs_dim] or [batch_dim, obs_dim]. 
+        :raises Exception: If obs isn't either of torch.tensor or np.ndarray, raise \
+        an exception.
+        :return np.ndarray: Returns the obtained action, with or without the batch \
+        dimension depending on the input. 
+        """
+        if type(obs) == type(np.array([0])):
+            obs = torch.from_numpy(obs)
+        else:
+            raise Exception("Value passed as action to no_exploration was of type ", type(obs), 
+                            "but should be either a torch.tensor or np.ndarray to successfully work.")
+        # if there is the batch dimension
+        if len(obs.shape) == 2:
+            return learning_algorithm(obs.to(learning_algorithm.device))
+        # if there is no batch dimension
+        elif len(obs.shape) == 1:
+            action = learning_algorithm(torch.unsqueeze(obs.to(learning_algorithm.device), dim=0))
+            return np.squeeze(action, axis=0)
+        else: 
+            raise Exception("Given observation not of shape [batch_dim, obs_dim] or [obs_dim]...")
+        
+    return no_exploration

@@ -42,6 +42,7 @@ class UnityOnPolicyBaseTrainer:
         to be used for on-policy learning.
 
         :param BaseEnv env: The Unity environment used.
+        :param str env_name: The name of the given environment.
         :param BehaviorName behavior_name: The BehaviorName of interest 
          *see low level Python API documentation for details on BehaviorName
         """
@@ -160,11 +161,8 @@ class UnityOnPolicyBaseTrainer:
         if len(decision_steps.obs[0]) != 0:
             # Generate actions for agents while applying the exploration function to 
             # promote exploration of the world
-            
-            best_actions = exploration_function(
-                learning_algorithm(decision_steps.obs[0]), 
-                self.env
-            )
+                        
+            best_actions = exploration_function(decision_steps.obs[0])
             
             # Store info of action picked to generate new experience in the next loop
             for agent_idx, agent_id in enumerate(decision_steps.agent_id):
@@ -195,6 +193,7 @@ class UnityOffPolicyBaseTrainer(OffPolicyBaseTrainer):
     def __init__(
             self,
             env : BaseEnv, 
+            env_name : str,
             behavior_name : BehaviorName
         ):
         """
@@ -203,6 +202,7 @@ class UnityOffPolicyBaseTrainer(OffPolicyBaseTrainer):
         to be used for on-policy learning.
 
         :param BaseEnv env: The Unity environment used.
+        :param str env_name: The name of the given environment.
         :param BehaviorName behavior_name: The BehaviorName of interest 
          *see low level Python API documentation for details on BehaviorName
         """
@@ -211,6 +211,7 @@ class UnityOffPolicyBaseTrainer(OffPolicyBaseTrainer):
                             "environment - please make sure that a Unity environment is passed!")
         
         super().__init__(env=env)
+        self.env_name = env_name
         self.behavior_name = behavior_name
 
         # reset the environment to produce behavior_specs
@@ -305,10 +306,7 @@ class UnityOffPolicyBaseTrainer(OffPolicyBaseTrainer):
             # Generate actions for agents while applying the exploration function to 
             # promote exploration of the world
             
-            best_actions = exploration_function(
-                learning_algorithm(decision_steps.obs[0]), 
-                self.env
-            )
+            best_actions = exploration_function(decision_steps.obs[0])
             
             # Store info of action picked to generate new experience in the next loop
             for agent_idx, agent_id in enumerate(decision_steps.agent_id):

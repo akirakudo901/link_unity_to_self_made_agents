@@ -45,4 +45,4 @@ parameters = {
 
 train_SAC_on_gym(parameters=parameters["online_example"], parameter_name="online_example",
           env=env, trainer=trainer,
-          training_id="zt6qe94f")
+          training_id=None)

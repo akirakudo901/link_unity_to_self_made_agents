@@ -19,6 +19,7 @@ import wandb
 from models.policy_learning_algorithms.policy_learning_algorithm import PolicyLearningAlgorithm
 from models.trainers.utils.buffer import Buffer
 from models.trainers.gym_base_trainer import GymOffPolicyBaseTrainer
+from models.trainers.unityenv_base_trainer import UnityOffPolicyBaseTrainer
 
 class SoftActorCritic(PolicyLearningAlgorithm):
     ALGORITHM_NAME = "SAC"
@@ -1099,11 +1100,11 @@ def uniform_random_sampling_wrapper(learning_algorithm : SoftActorCritic):
 
 # TRAINING CODE
 def train_SAC_on_gym(parameters : Dict, 
-              parameter_name : str, 
-              env,
-              trainer : GymOffPolicyBaseTrainer,
-              training_id : int
-              ):
+                     parameter_name : str, 
+                     env,
+                     trainer : GymOffPolicyBaseTrainer,
+                     training_id : int
+                     ):
     """
     Trains an SAC algorithm on the given parameters on 
     the given environment and trainer.
@@ -1152,6 +1153,63 @@ def train_SAC_on_gym(parameters : Dict,
         task_name=parameter_name,
         training_id=training_id,
         render_evaluation=parameters["render_evaluation"]
+        )
+
+    return l_a
+
+def train_SAC_on_unity(parameters : Dict, 
+                       parameter_name : str, 
+                       env,
+                       trainer : UnityOffPolicyBaseTrainer,
+                       training_id : int,
+                       ):
+    """
+    Trains an SAC algorithm on the given parameters on 
+    the given environment and trainer.
+
+    :param Dict parameters: A dictionary specifying the values for \
+    all parameters required to run an SAC training.
+    :param str parameter_name: The name of the parameter, which will \
+        be used as the name of the run.
+    :param env: The environment we run the training on.
+    :param UnityOffPolicyBaseTrainer trainer: The trainer we use for trianing.
+    :param int training_id: An id used to uniquely determine this run. If given \
+    as None, will generate a new unique ID. Otherwise, if there is \
+    a corresponding run in the past, we restart from that run.
+    :return SoftActorCritic l_a: Returns the trained learning algorithm.
+    """
+
+    print(f"Training: {parameter_name}.")
+
+    learning_algorithm = SoftActorCritic(
+        q_net_learning_rate=parameters["q_net_learning_rate"], 
+        policy_learning_rate=parameters["policy_learning_rate"], 
+        discount=parameters["discount"], 
+        temperature=parameters["temperature"],
+        qnet_update_smoothing_coefficient=parameters["qnet_update_smoothing_coefficient"],
+        pol_eval_batch_size=parameters["pol_eval_batch_size"],
+        pol_imp_batch_size=parameters["pol_imp_batch_size"],
+        update_qnet_every_N_gradient_steps=parameters["update_qnet_every_N_gradient_steps"],
+        qnet_layer_sizes=parameters["qnet_layer_sizes"],
+        policy_layer_sizes=parameters["policy_layer_sizes"],
+        env=env
+        # leave the optimizer as the default = Adam
+        )
+
+    l_a = trainer.train(
+        learning_algorithm=learning_algorithm,
+        num_training_epochs=parameters["num_training_steps"], 
+        new_experience_per_epoch=parameters["num_new_exp"],
+        max_buffer_size=parameters["buffer_size"],
+        num_initial_experiences=parameters["num_init_exp"],
+        evaluate_every_N_epochs=parameters["evaluate_every_N_epochs"],
+        evaluate_N_samples=parameters["evaluate_N_samples"],
+        initial_exploration_function=no_exploration_wrapper(learning_algorithm),
+        training_exploration_function=no_exploration_wrapper(learning_algorithm),
+        training_exploration_function_name="no_exploration",
+        save_after_training=parameters["save_after_training"],
+        task_name=parameter_name,
+        training_id=training_id
         )
 
     return l_a

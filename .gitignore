@@ -13,3 +13,5 @@
 # ignore playground.py and t_estgroud.py since they are just to try ideas
 playground.py
 t_estground.py
+# ignore TournamentEnv which is temporarily here for fun
+/TournamentEnv

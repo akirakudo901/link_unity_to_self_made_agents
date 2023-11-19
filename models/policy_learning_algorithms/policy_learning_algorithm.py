@@ -491,9 +491,9 @@ def generate_parameters(default_parameters : Dict, default_name : str, **kwargs)
 
     def new_dict_from_old(old_name, old_dict, key, val):
         if old_name == default_name:
-            new_name = f"{key}_{str(val)}"
+            new_name = f"{key[:5] if len(key) >= 5 else key}_{str(val)}"
         else:
-            new_name = name + f"_{key}_{str(val)}"
+            new_name = name + f"_{key[:5] if len(key) >= 5 else key}_{str(val)}"
         old_dict[key] = val
         return new_name, old_dict
 
@@ -530,7 +530,8 @@ def generate_name_from_parameter_dict(parameter_dict : Dict):
 
     :param Dict parameter_dict: The parameter dict for which we generate the name.
     """
-    acc = str(list(parameter_dict.keys())[0]) + "_" + str(list(parameter_dict.values())[0])
-    [acc := acc + "_" + str(key) + "_" + str(val) for key, val in list(parameter_dict.items())[1:]]
+    first_key = list(parameter_dict.keys())[0]
+    acc = str(first_key[:5] if len(first_key) >= 5 else first_key) + "_" + str(list(parameter_dict.values())[0])
+    [acc := acc + "_" + str(key[:5] if len(key) >= 5 else key) + "_" + str(val) for key, val in list(parameter_dict.items())[1:]]
     return acc
         

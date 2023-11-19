@@ -250,20 +250,23 @@ class OffPolicyBaseTrainer(ABC):
         wandb_config_dict["evaluate_every_N_epochs"] = evaluate_every_N_epochs
         wandb_config_dict["evaluate_N_samples"] = evaluate_N_samples
 
+        wandb_config_dict = wandb.helper.parse_config(
+            wandb_config_dict, 
+            exclude=("obs_dim_size", 
+                     "act_dim_size",
+                     "obs_num_discrete",
+                     "act_num_discrete",
+                     "obs_ranges",
+                     "act_ranges", 
+                     "qnet1_loss_history",
+                     "qnet2_loss_history",
+                     "policy_loss_history")) #those keys likely are cluttering the files
+
         # initialize the run
         wandb.init(
             project=f'{self.env_name}_{learning_algorithm.ALGORITHM_NAME}',
             group=task_name,
             config=wandb_config_dict,
-            config_exclude_keys=["obs_dim_size", 
-                                 "act_dim_size",
-                                 "obs_num_discrete",
-                                 "act_num_discrete",
-                                 "obs_ranges",
-                                 "act_ranges", 
-                                 "qnet1_loss_history",
-                                 "qnet2_loss_history",
-                                 "policy_loss_history"], #if those keys are cluttering the files
             tags=[task_name, learning_algorithm.ALGORITHM_NAME],
             settings=wandb.Settings(_disable_stats=True),
             name=f'run_id={training_id}',
