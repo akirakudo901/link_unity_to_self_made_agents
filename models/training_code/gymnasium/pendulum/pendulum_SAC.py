@@ -8,7 +8,7 @@ If we can't solve this, there is an error somewhere in the code to be fixed.
 
 import gymnasium
 
-from models.policy_learning_algorithms.soft_actor_critic import SoftActorCritic, no_exploration_wrapper, train_SAC_on_gym
+from models.policy_learning_algorithms.soft_actor_critic import train_SAC_on_gym
 from models.trainers.gym_base_trainer import GymOffPolicyBaseTrainer
 
 # create the environment and determine specs about it
